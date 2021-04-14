@@ -46,6 +46,8 @@ package java.util.concurrent.atomic;
  * @since 1.5
  * @author Doug Lea
  * @param <V> The type of object referred to by this reference
+ *
+ * 用来解决ABA问题
  */
 public class AtomicStampedReference<V> {
 

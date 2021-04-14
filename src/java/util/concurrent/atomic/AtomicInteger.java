@@ -15,12 +15,16 @@ import sun.misc.Unsafe;
  *
  * @since 1.5
  * @author Doug Lea
+ *
+ * 基于【CAS】+ 自旋实现，详见{@link AtomicInteger#incrementAndGet()}
 */
 public class AtomicInteger extends Number implements java.io.Serializable {
     private static final long serialVersionUID = 6214790243416807050L;
 
+    // 获取并操作内存的数据
     // setup to use Unsafe.compareAndSwapInt for updates
     private static final Unsafe unsafe = Unsafe.getUnsafe();
+    // 存储value在AtomicInteger中的偏移量
     private static final long valueOffset;
 
     static {
@@ -30,6 +34,7 @@ public class AtomicInteger extends Number implements java.io.Serializable {
         } catch (Exception ex) { throw new Error(ex); }
     }
 
+    // 存储AtomicInteger的int值，借助volatile保证其在线程间是可见的
     private volatile int value;
 
     /**
@@ -149,6 +154,25 @@ public class AtomicInteger extends Number implements java.io.Serializable {
      */
     public final int incrementAndGet() {
         return unsafe.getAndAddInt(this, valueOffset, 1) + 1;
+
+        /**
+         * 以下是【unsafe.getAndAddInt】方法
+         *     public final int getAndAddInt(Object o, long offset, int delta) {
+         *
+         *         // 自旋操作
+         *         int v;
+         *         do {
+         *             // 循环获取给定对象o中的偏移量处的值v
+         *             v = this.getIntVolatile(o, offset);
+         *
+         *             // 判断内存值是否等于v, 如果相等将内存值设置为v + delta并返回，完整相加操作，否则不断继续循环(自旋)重试，直至成功
+         *         } while(!this.compareAndSwapInt(o, offset, v, v + delta));
+         *
+         *         return v;
+         *     }
+         *
+         *    整个比较+更新操作封装在compareAndSwapInt里面，其在JNI借助CPU指令完成，属于原子操作。
+         */
     }
 
     /**
