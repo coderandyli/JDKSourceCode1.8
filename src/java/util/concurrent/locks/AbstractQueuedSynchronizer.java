@@ -285,6 +285,8 @@ import sun.misc.Unsafe;
  *
  * @since 1.5
  * @author Doug Lea
+ *
+ * 抽象队列式同步器
  */
 public abstract class AbstractQueuedSynchronizer
     extends AbstractOwnableSynchronizer
@@ -376,23 +378,35 @@ public abstract class AbstractQueuedSynchronizer
      * Scherer and Michael Scott, along with members of JSR-166
      * expert group, for helpful ideas, discussions, and critiques
      * on the design of this class.
+     *
+     * 等待队列的节点类
+     *  - 线程
+     *  - 队列中线程状态
+     *  - 前驱和后继线程
      */
     static final class Node {
         /** Marker to indicate a node is waiting in shared mode */
+        // 线程的两种等待模式之一：共享等待模式
         static final Node SHARED = new Node();
         /** Marker to indicate a node is waiting in exclusive mode */
+        // // 线程的两种等待模式之一：互斥等待模式
         static final Node EXCLUSIVE = null;
 
         /** waitStatus value to indicate thread has cancelled */
+        //  线程在队列中的状态枚举
+        // 表示线程的获锁请求已经【取消】
         static final int CANCELLED =  1;
         /** waitStatus value to indicate successor's thread needs unparking */
+        // 表示该线程一切都准备好了,就等待锁空闲出来给我
         static final int SIGNAL    = -1;
         /** waitStatus value to indicate thread is waiting on condition */
+        // 表示线程等待某一个条件（Condition）被满足
         static final int CONDITION = -2;
         /**
          * waitStatus value to indicate the next acquireShared should
          * unconditionally propagate
          */
+        // 当线程处在“SHARED”模式时，该字段才会被使用上
         static final int PROPAGATE = -3;
 
         /**
