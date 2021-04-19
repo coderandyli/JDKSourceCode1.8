@@ -379,7 +379,7 @@ public abstract class AbstractQueuedSynchronizer
      * expert group, for helpful ideas, discussions, and critiques
      * on the design of this class.
      *
-     * 等待队列的节点类
+     * 等待队列的节点类（双向链表的数据结构）
      *  - 线程
      *  - 队列中线程状态
      *  - 前驱和后继线程
@@ -442,6 +442,8 @@ public abstract class AbstractQueuedSynchronizer
          * The field is initialized to 0 for normal sync nodes, and
          * CONDITION for condition nodes.  It is modified using CAS
          * (or when possible, unconditional volatile writes).
+         *
+         * 表示线程在队列中的状态，其值就是上述提到的CANCELLED、SIGNAL、CONDITION、PROPAGATE
          */
         volatile int waitStatus;
 
@@ -455,6 +457,8 @@ public abstract class AbstractQueuedSynchronizer
          * head only as a result of successful acquire. A
          * cancelled thread never succeeds in acquiring, and a thread only
          * cancels itself, not any other node.
+         *
+         *前驱节点
          */
         volatile Node prev;
 
@@ -470,12 +474,16 @@ public abstract class AbstractQueuedSynchronizer
          * double-check.  The next field of cancelled nodes is set to
          * point to the node itself instead of null, to make life
          * easier for isOnSyncQueue.
+         *
+         * 后驱节点
          */
         volatile Node next;
 
         /**
          * The thread that enqueued this node.  Initialized on
          * construction and nulled out after use.
+         *
+         * 表示该节点的线程
          */
         volatile Thread thread;
 
@@ -488,6 +496,8 @@ public abstract class AbstractQueuedSynchronizer
          * re-acquire. And because conditions can only be exclusive,
          * we save a field by using special value to indicate shared
          * mode.
+         *
+         * 表示等待condition条件的Node节点。
          */
         Node nextWaiter;
 
@@ -543,6 +553,8 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * The synchronization state.
+     *
+     * status == 0; 表示没有任何线程持有该锁；
      */
     private volatile int state;
 
@@ -648,6 +660,7 @@ public abstract class AbstractQueuedSynchronizer
      * Wakes up node's successor, if one exists.
      *
      * @param node the node
+     * 唤醒线程
      */
     private void unparkSuccessor(Node node) {
         /*
@@ -664,6 +677,10 @@ public abstract class AbstractQueuedSynchronizer
          * just the next node.  But if cancelled or apparently null,
          * traverse backwards from tail to find the actual
          * non-cancelled successor.
+         *
+         * 如果head节点的下一个阶段是null或者被cancele了（status > 0）
+         * 那么就从队列的尾巴往前找，找到一个最前面的并且状态不是被cancelled的线程
+         * 至于为什么要从后往前找，不是从前往后找（不清楚？？）
          */
         Node s = node.next;
         if (s == null || s.waitStatus > 0) {
@@ -672,6 +689,7 @@ public abstract class AbstractQueuedSynchronizer
                 if (t.waitStatus <= 0)
                     s = t;
         }
+        // 将找到的队列中符合条件的第一个线程"唤醒"
         if (s != null)
             LockSupport.unpark(s.thread);
     }
@@ -867,6 +885,8 @@ public abstract class AbstractQueuedSynchronizer
      * @param node the node
      * @param arg the acquire argument
      * @return {@code true} if interrupted while waiting
+     *
+     * 对已经排队中的线程进行"获锁"操作。
      */
     final boolean acquireQueued(final Node node, int arg) {
         boolean failed = true;
@@ -1085,6 +1105,9 @@ public abstract class AbstractQueuedSynchronizer
      *         thrown in a consistent fashion for synchronization to work
      *         correctly.
      * @throws UnsupportedOperationException if exclusive mode is not supported
+     *
+     * 需要子类实现，尝试获取锁
+     *  - 试图以独占模式获取。该方法应该查询对象的状态是否允许以独占模式获取它，如果允许，则获取它。
      */
     protected boolean tryAcquire(int arg) {
         throw new UnsupportedOperationException();
@@ -1207,8 +1230,14 @@ public abstract class AbstractQueuedSynchronizer
      * @param arg the acquire argument.  This value is conveyed to
      *        {@link #tryAcquire} but is otherwise uninterpreted and
      *        can represent anything you like.
+     *
+     * 加锁时调用
      */
     public final void acquire(int arg) {
+        // addWaiter(Node.EXCLUSIVE) 方法对获锁失败的线程放入到队列中排队等待，
+        // acquireQueued()方法对已经排队中的线程进行"获锁"操作。
+        // 简单来说：就是一个线程获取锁失败，被放到了线程等待队列中，而 acquireQueued方法就是把放入队列中的这个线程不断进行
+        // "获锁"，直到它"成功获锁"或者不再需要锁（如被中断）
         if (!tryAcquire(arg) &&
             acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
             selfInterrupt();
@@ -1270,10 +1299,13 @@ public abstract class AbstractQueuedSynchronizer
      *        {@link #tryRelease} but is otherwise uninterpreted and
      *        can represent anything you like.
      * @return the value returned from {@link #tryRelease}
+     *
+     * 释放锁
      */
     public final boolean release(int arg) {
         if (tryRelease(arg)) {
             Node h = head;
+            // unparkSuccessor(h) 唤醒线程
             if (h != null && h.waitStatus != 0)
                 unparkSuccessor(h);
             return true;

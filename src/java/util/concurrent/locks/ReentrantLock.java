@@ -102,6 +102,12 @@ import java.util.Collection;
  *
  * @since 1.5
  * @author Doug Lea
+ *
+ * ReentrantLock 实现了Lock接口，操作其成员变量sync这个AQS的子类（NonfairSync和FairSync），来完成锁的相关功能
+ *  - NonfairSync 非公平锁的实现
+ *  - FairSync 公平锁的实现
+ *
+ *
  */
 public class ReentrantLock implements Lock, java.io.Serializable {
     private static final long serialVersionUID = 7373984872572414699L;
@@ -209,9 +215,11 @@ public class ReentrantLock implements Lock, java.io.Serializable {
          * acquire on failure.
          */
         final void lock() {
+            // 如果成功更新state=1，就设置该锁的占用新城为当前线程
             if (compareAndSetState(0, 1))
                 setExclusiveOwnerThread(Thread.currentThread());
             else
+                // 获取
                 acquire(1);
         }
 
@@ -469,7 +477,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      *
      * @throws IllegalMonitorStateException if the current thread does not
      *         hold this lock
-     * 解锁
+     * 释放锁
      */
     public void unlock() {
         sync.release(1);

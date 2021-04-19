@@ -135,6 +135,8 @@ public class LockSupport {
      *
      * @param thread the thread to unpark, or {@code null}, in which case
      *        this operation has no effect
+     *
+     * 线程唤醒
      */
     public static void unpark(Thread thread) {
         if (thread != null)
