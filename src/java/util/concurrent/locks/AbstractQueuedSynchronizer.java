@@ -287,6 +287,7 @@ import sun.misc.Unsafe;
  * @author Doug Lea
  *
  * 抽象队列式同步器
+ *  - 为Java中几乎所有的锁和同步器提供一个同步基础类
  */
 public abstract class AbstractQueuedSynchronizer
     extends AbstractOwnableSynchronizer
@@ -462,7 +463,7 @@ public abstract class AbstractQueuedSynchronizer
          * cancelled thread never succeeds in acquiring, and a thread only
          * cancels itself, not any other node.
          *
-         *前驱节点
+         * 前驱节点
          */
         volatile Node prev;
 
@@ -507,7 +508,7 @@ public abstract class AbstractQueuedSynchronizer
 
         /**
          * Returns true if node is waiting in shared mode.
-         * 是否是【共享模式】
+         * 是否是共享模式
          */
         final boolean isShared() {
             return nextWaiter == SHARED;
@@ -544,6 +545,11 @@ public abstract class AbstractQueuedSynchronizer
         }
     }
 
+
+    /**
+     * head、tail、state被volatile关键字修饰，保证其修改之后的可见性，然后再加上 + CAS机制 确保了线程安全
+     */
+
     /**
      * Head of the wait queue, lazily initialized.  Except for
      * initialization, it is modified only via method setHead.  Note:
@@ -565,7 +571,9 @@ public abstract class AbstractQueuedSynchronizer
     /**
      * The synchronization state.
      *
-     * status == 0; 表示没有任何线程持有该锁；
+     * 控制加锁/解锁的状态变量
+     *  - status == 0; 表示没有任何线程持有该锁；
+     *  - 可重入性的实现：加锁+1；解锁-1；
      */
     private volatile int state;
 
@@ -1119,6 +1127,20 @@ public abstract class AbstractQueuedSynchronizer
     // Main exported methods
 
     /**
+     * 以下是子类需要实现的类
+     *
+     * {@link AbstractQueuedSynchronizer#tryAcquire(int)}
+     * {@link AbstractQueuedSynchronizer#tryRelease(int)}
+     * {@link AbstractQueuedSynchronizer#tryAcquireShared(int)}
+     * {@link AbstractQueuedSynchronizer#tryReleaseShared(int)}
+     * {@link AbstractQueuedSynchronizer#isHeldExclusively()}
+     *
+     * 为什么不直接定义成抽象类呢？
+     *      - 子类并不需要实现所有的方法
+     *
+     */
+
+    /**
      * Attempts to acquire in exclusive mode. This method should query
      * if the state of the object permits it to be acquired in the
      * exclusive mode, and if so to acquire it.
@@ -1144,7 +1166,7 @@ public abstract class AbstractQueuedSynchronizer
      *         correctly.
      * @throws UnsupportedOperationException if exclusive mode is not supported
      *
-     * 需要子类实现，尝试获取锁
+     * 【互斥模式】下使用：尝试获取锁
      *  - 试图以独占模式获取。该方法应该查询对象的状态是否允许以独占模式获取它，如果允许，则获取它。
      */
     protected boolean tryAcquire(int arg) {
@@ -1172,6 +1194,8 @@ public abstract class AbstractQueuedSynchronizer
      *         thrown in a consistent fashion for synchronization to work
      *         correctly.
      * @throws UnsupportedOperationException if exclusive mode is not supported
+     *
+     * 【互斥模式】下使用：尝试释放锁
      */
     protected boolean tryRelease(int arg) {
         throw new UnsupportedOperationException();
@@ -1212,6 +1236,7 @@ public abstract class AbstractQueuedSynchronizer
      * @throws UnsupportedOperationException if shared mode is not supported
      *
      * 尝试以【共享模式】获取。此方法应该查询对象的状态是否允许以共享模式获取它，如果允许，则获取它。
+     * 【共享模式】下使用：尝试获取锁
      */
     protected int tryAcquireShared(int arg) {
         throw new UnsupportedOperationException();
@@ -1240,6 +1265,7 @@ public abstract class AbstractQueuedSynchronizer
      *
      * 【共享模式】- 尝试释放锁
      *  - 尝试设置状态以反映共享模式下的(锁)释放。
+     * 【共享模式】下使用：尝试释放锁
      */
     protected boolean tryReleaseShared(int arg) {
         throw new UnsupportedOperationException();
@@ -1259,6 +1285,8 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if synchronization is held exclusively;
      *         {@code false} otherwise
      * @throws UnsupportedOperationException if conditions are not supported
+     *
+     * 如果当前线程独占这锁, 返回true
      */
     protected boolean isHeldExclusively() {
         throw new UnsupportedOperationException();
@@ -2350,25 +2378,34 @@ public abstract class AbstractQueuedSynchronizer
      * are at it, we do the same for other CASable fields (which could
      * otherwise be done with atomic field updaters).
      */
-    // sun.misc.Unsafe 是JDK内部用的工具类。它通过暴露一些Java意义上说“不安全”的功能给Java层代码，来让JDK能够更多的使用Java代码来实现一些原本是平台相关的、需要使用native语言（例如C或C++）才可以实现的功能。该类不应该在JDK核心类库之外使用。
+    // 获取Unsafe类的实例，注意这种方式仅限于jdk自己使用，普通用户是无法这样调用的
     private static final Unsafe unsafe = Unsafe.getUnsafe();
+    // 状态变量state的偏移量
     private static final long stateOffset;
+    // 头节点的偏移量
     private static final long headOffset;
+    // 尾节点的偏移量
     private static final long tailOffset;
+    // 等待状态的偏移量（Node的属性）
     private static final long waitStatusOffset;
+    // 下一个节点的偏移量（Node的属性）
     private static final long nextOffset;
 
     static {
         try {
-            //unsafe.objectFieldOffset获取某个字段相对Java对象的“起始地址”的偏移量
+            // 获取state的偏移量
             stateOffset = unsafe.objectFieldOffset
                 (AbstractQueuedSynchronizer.class.getDeclaredField("state"));
+            // 获取head的偏移量
             headOffset = unsafe.objectFieldOffset
                 (AbstractQueuedSynchronizer.class.getDeclaredField("head"));
+            // 获取tail的偏移量
             tailOffset = unsafe.objectFieldOffset
                 (AbstractQueuedSynchronizer.class.getDeclaredField("tail"));
+            // 获取waitStatus的偏移量
             waitStatusOffset = unsafe.objectFieldOffset
                 (Node.class.getDeclaredField("waitStatus"));
+            // 获取next的偏移量
             nextOffset = unsafe.objectFieldOffset
                 (Node.class.getDeclaredField("next"));
 
