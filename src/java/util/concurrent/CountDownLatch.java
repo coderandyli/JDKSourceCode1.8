@@ -34,6 +34,7 @@
  */
 
 package java.util.concurrent;
+
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 /**
@@ -150,36 +151,46 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
  * actions following a successful return from a corresponding
  * {@code await()} in another thread.
  *
- * @since 1.5
  * @author Doug Lea
+ * @since 1.5
  */
 public class CountDownLatch {
     /**
      * Synchronization control For CountDownLatch.
      * Uses AQS state to represent count.
+     * <p>
+     * 基于AQS的内部Sync
+     * 使用AQS的state来表示计数count
      */
     private static final class Sync extends AbstractQueuedSynchronizer {
         private static final long serialVersionUID = 4982264981922014374L;
 
         Sync(int count) {
+            // 使用AQS的setState设置状态
             setState(count);
         }
 
         int getCount() {
+            // 使用AQS的getState()获取状态
             return getState();
         }
 
+        // 覆盖在共享模式下尝试获取锁
         protected int tryAcquireShared(int acquires) {
+            // 这里用状态state是否为0来表示是否成功，为0的时候可以获取到返回1，否则不可以返回-1
             return (getState() == 0) ? 1 : -1;
         }
 
+        // 覆盖在共享模式下尝试释放锁
         protected boolean tryReleaseShared(int releases) {
             // Decrement count; signal when transition to zero
-            for (;;) {
+            // 在for循环中Decrement count直至成功
+            // 当状态值即count为0的时候，返回false表示 signal when transition to zero
+            for (; ; ) {
                 int c = getState();
                 if (c == 0)
                     return false;
-                int nextc = c-1;
+                int nextc = c - 1;
                 if (compareAndSetState(c, nextc))
                     return nextc == 0;
             }
@@ -192,8 +203,9 @@ public class CountDownLatch {
      * Constructs a {@code CountDownLatch} initialized with the given count.
      *
      * @param count the number of times {@link #countDown} must be invoked
-     *        before threads can pass through {@link #await}
+     *              before threads can pass through {@link #await}
      * @throws IllegalArgumentException if {@code count} is negative
+     * 使用给定计数值构造CountDownLatch
      */
     public CountDownLatch(int count) {
         if (count < 0) throw new IllegalArgumentException("count < 0");
@@ -225,7 +237,10 @@ public class CountDownLatch {
      * interrupted status is cleared.
      *
      * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     *                              while waiting
+     *
+     *  让当前线程阻塞直到计数count变为0，或者线程被中断
+     *  会调用 {@link AbstractQueuedSynchronizer#tryAcquireShared(int)}
      */
     public void await() throws InterruptedException {
         sync.acquireSharedInterruptibly(1);
@@ -266,14 +281,15 @@ public class CountDownLatch {
      * will not wait at all.
      *
      * @param timeout the maximum time to wait
-     * @param unit the time unit of the {@code timeout} argument
+     * @param unit    the time unit of the {@code timeout} argument
      * @return {@code true} if the count reached zero and {@code false}
-     *         if the waiting time elapsed before the count reached zero
+     * if the waiting time elapsed before the count reached zero
      * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     *                              while waiting
+     * 阻塞当前线程，除非count变为0或者等待了timeout的时间。当count变为0时，返回true
      */
     public boolean await(long timeout, TimeUnit unit)
-        throws InterruptedException {
+            throws InterruptedException {
         return sync.tryAcquireSharedNanos(1, unit.toNanos(timeout));
     }
 
@@ -286,6 +302,9 @@ public class CountDownLatch {
      * thread scheduling purposes.
      *
      * <p>If the current count equals zero then nothing happens.
+     *
+     * count递减（倒计时）
+     * 内部会调用 {@link AbstractQueuedSynchronizer#tryAcquireShared(int)}
      */
     public void countDown() {
         sync.releaseShared(1);
@@ -297,6 +316,8 @@ public class CountDownLatch {
      * <p>This method is typically used for debugging and testing purposes.
      *
      * @return the current count
+     *
+     * 获取当前值
      */
     public long getCount() {
         return sync.getCount();

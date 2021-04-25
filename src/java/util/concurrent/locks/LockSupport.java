@@ -170,6 +170,8 @@ public class LockSupport {
      * @param blocker the synchronization object responsible for this
      *        thread parking
      * @since 1.6
+     *
+     * 禁用当前线程用于线程调度目的，除非允许可用。
      */
     public static void park(Object blocker) {
         Thread t = Thread.currentThread();
