@@ -571,6 +571,7 @@ public abstract class AbstractQueuedSynchronizer
     /**
      * The synchronization state.
      *
+     *
      * 控制加锁/解锁的状态变量
      *  - status == 0; 表示没有任何线程持有该锁；
      *  - 可重入性的实现：加锁+1；解锁-1；
@@ -1263,7 +1264,6 @@ public abstract class AbstractQueuedSynchronizer
      *         correctly.
      * @throws UnsupportedOperationException if shared mode is not supported
      *
-     * 【共享模式】- 尝试释放锁
      *  - 尝试设置状态以反映共享模式下的(锁)释放。
      * 【共享模式】下使用：尝试释放锁
      */
@@ -1373,9 +1373,11 @@ public abstract class AbstractQueuedSynchronizer
      * @return the value returned from {@link #tryRelease}
      *
      * 释放锁
+     * - 当前线程释放锁，
      */
     public final boolean release(int arg) {
         if (tryRelease(arg)) {
+            // 唤醒下一个节点线程
             Node h = head;
             // unparkSuccessor(h) 唤醒线程
             if (h != null && h.waitStatus != 0)

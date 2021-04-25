@@ -145,6 +145,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
                     return true;
                 }
             }
+            // 可重入性保障，判断当前线程是否就是占有锁的线程，如果是，state + 1;
             else if (current == getExclusiveOwnerThread()) {
                 int nextc = c + acquires;
                 if (nextc < 0) // overflow
@@ -159,6 +160,8 @@ public class ReentrantLock implements Lock, java.io.Serializable {
             int c = getState() - releases;
             if (Thread.currentThread() != getExclusiveOwnerThread())
                 throw new IllegalMonitorStateException();
+
+            // c == 0时，释放锁
             boolean free = false;
             if (c == 0) {
                 free = true;
@@ -215,7 +218,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
          * acquire on failure.
          */
         final void lock() {
-            // 如果成功更新state=1，就设置该锁的占用新城为当前线程
+            // 如果成功更新state=1，设置当前线程占有锁（独占访问权限）
             if (compareAndSetState(0, 1))
                 setExclusiveOwnerThread(Thread.currentThread());
             else
@@ -250,8 +253,11 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         protected final boolean tryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
             int c = getState();
+            /**
+             *
+             */
             if (c == 0) {
-                // 判断当前线程是否位于同步队列中的第一个
+                // 判断当前线程是否位于同步队列中的第一个，
                 // 与非公平锁的唯一区别
                 if (!hasQueuedPredecessors() &&
                     compareAndSetState(0, acquires)) {
@@ -259,6 +265,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
                     return true;
                 }
             }
+            // 可重入性保障，判断当前线程是否就是占有锁的线程，如果是，state + 1;
             else if (current == getExclusiveOwnerThread()) {
                 int nextc = c + acquires;
                 if (nextc < 0)
