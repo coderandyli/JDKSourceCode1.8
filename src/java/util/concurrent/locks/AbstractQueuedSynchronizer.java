@@ -288,6 +288,18 @@ import sun.misc.Unsafe;
  *
  * 抽象队列式同步器
  *  - 为Java中几乎所有的锁和同步器提供一个同步基础类
+ *
+ *
+ * 以下在【等待队列中获取锁】的方法逻辑基本相同，但当线程挂起时，执行逻辑不同。
+ * {@link #acquireQueued(Node, int)}    获取锁（被上层的lock()方法调用） (如果拿不锁 --> 自旋尝试拿锁 --> 判定线程挂起 ---> 线程阻塞 --> 直到拿到锁)
+ * {@link #doAcquireInterruptibly(int)}
+ * {@link #doAcquireNanos(int, long)}
+ * {@link #doAcquireShared(int)}
+ *{@link #doAcquireSharedInterruptibly(int)}
+ * {@link #doAcquireSharedNanos(int, long)}
+ *
+ *
+ *
  */
 public abstract class AbstractQueuedSynchronizer
     extends AbstractOwnableSynchronizer
@@ -552,7 +564,7 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * Head of the wait queue, lazily initialized.  Except for
-     * initialization, it is modified only via method setHead.  Note:
+     * initializatryAcquireNanostion, it is modified only via method setHead.  Note:
      * If head exists, its waitStatus is guaranteed not to be
      * CANCELLED.
      *
@@ -856,12 +868,12 @@ public abstract class AbstractQueuedSynchronizer
      * @param node the node
      * @return {@code true} if thread should block; node的线程是应该阻塞
      *
-     * 检查并更新获取失败的节点的状态，如果是阻塞线程，返回true
+     * 检查并更新获取失败的节点的状态，如果是阻塞线程，返回true.
      */
     private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
         // 前驱节点的线程等待状态
         int ws = pred.waitStatus;
-        if (ws == Node.SIGNAL) // 表示该线程一切都准备好了,就等待锁空闲出来给我
+        if (ws == Node.SIGNAL) // 表示该线程节点的前驱节点一切都准备好了,就等待锁空闲出来给我，此时当前线程挂起(阻塞)
             /*
              * This node has already set status asking a release
              * to signal it, so it can safely park.
@@ -877,7 +889,7 @@ public abstract class AbstractQueuedSynchronizer
                 node.prev = pred = pred.prev;
             } while (pred.waitStatus > 0);
             pred.next = node;
-        } else {
+        } else {  // CAS设置waitStatus为Node.SIGNAL
             /*
              * waitStatus must be 0 or PROPAGATE.  Indicate that we
              * need a signal, but don't park yet.  Caller will need to
@@ -901,7 +913,7 @@ public abstract class AbstractQueuedSynchronizer
      *
      * @return {@code true} if interrupted
      *
-     * 中断线程
+     * 线程挂起、等待
      */
     private final boolean parkAndCheckInterrupt() {
         LockSupport.park(this);
@@ -925,7 +937,9 @@ public abstract class AbstractQueuedSynchronizer
      * @param arg the acquire argument
      * @return {@code true} if interrupted while waiting
      *
-     * 对已经排队中的线程进行"获锁"操作。
+     * 【排他】模式下从【等待队列】中获取锁，直到获取锁为止
+     *  - 获取锁（被上层的lock()方法调用） (如果拿不锁 --> 自旋尝试拿锁 --> 判定线程挂起 ---> 线程阻塞 --> 直到拿到锁)
+     *  - {@link ReentrantLock#lock()} 方法实现的核心逻辑
      */
     final boolean acquireQueued(final Node node, int arg) {
         boolean failed = true;
@@ -935,14 +949,14 @@ public abstract class AbstractQueuedSynchronizer
             for (;;) {
                 // 当前节点的前驱节点是head的时候，就可以尝试获取占用资源(tryAcquire(arg))
                 final Node p = node.predecessor();
-                if (p == head && tryAcquire(arg)) {
+                if (p == head && tryAcquire(arg)) { // 获锁成功
                     setHead(node);
                     p.next = null; // help GC
                     failed = false;
                     return interrupted;
                 }
 
-                // 如果获取失败，判断是否可以休息，可以的话就进入waiting状态，直到被uppark().
+                // 如果获取失败，判断是否应该挂起，可以的话就挂起（阻塞），直到被uppark().
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
                     interrupted = true;
@@ -956,6 +970,11 @@ public abstract class AbstractQueuedSynchronizer
     /**
      * Acquires in exclusive interruptible mode.
      * @param arg the acquire argument
+     * 【排他】模式下从【等待队列】中获取锁，可中断，当线程被挂起时，抛出【中断异常】
+     *    对已经排队中的线程进行"获锁"操作，与{@link #acquireQueued(Node, int)} 方法实现逻辑差不多，
+     *  {@link ReentrantLock#lockInterruptibly()} 方法实现的核心逻辑
+     *
+     *  【可中断锁】的实现核心逻辑
      */
     private void doAcquireInterruptibly(int arg)
         throws InterruptedException {
@@ -964,12 +983,13 @@ public abstract class AbstractQueuedSynchronizer
         try {
             for (;;) {
                 final Node p = node.predecessor();
-                if (p == head && tryAcquire(arg)) {
+                if (p == head && tryAcquire(arg)) { // 获锁成功
                     setHead(node);
                     p.next = null; // help GC
                     failed = false;
                     return;
                 }
+                //
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
                     throw new InterruptedException();
@@ -986,6 +1006,10 @@ public abstract class AbstractQueuedSynchronizer
      * @param arg the acquire argument
      * @param nanosTimeout max wait time
      * @return {@code true} if acquired
+     *
+     * 【排他】模式下从【等待队列】中获取锁，超时返回 false
+     *  - 有超时限制
+     *  {@link ReentrantLock#tryLock(long, TimeUnit)}方法实现的核心逻辑
      */
     private boolean doAcquireNanos(int arg, long nanosTimeout)
             throws InterruptedException {
@@ -1003,6 +1027,7 @@ public abstract class AbstractQueuedSynchronizer
                     failed = false;
                     return true;
                 }
+                // 统计剩余时长
                 nanosTimeout = deadline - System.nanoTime();
                 if (nanosTimeout <= 0L)
                     return false;
@@ -1021,6 +1046,7 @@ public abstract class AbstractQueuedSynchronizer
     /**
      * Acquires in shared uninterruptible mode.
      * @param arg the acquire argument
+     * 【分享】模式下从【等待队列】中获取锁，直到获取锁为止
      */
     private void doAcquireShared(int arg) {
         final Node node = addWaiter(Node.SHARED);
@@ -1053,11 +1079,10 @@ public abstract class AbstractQueuedSynchronizer
     /**
      * Acquires in shared interruptible mode.
      * @param arg the acquire argument
-     * 在Shared模式下【获取】，可中断
+     * 【分享】模式下从【等待队列】中获取锁，可中断，线程挂起，抛出【中断异常】
      */
     private void doAcquireSharedInterruptibly(int arg)
         throws InterruptedException {
-        // 创建一个等待节点
         final Node node = addWaiter(Node.SHARED);
         boolean failed = true;
         try {
@@ -1073,7 +1098,7 @@ public abstract class AbstractQueuedSynchronizer
                     }
                 }
 
-                // 中断
+                // 判断是否阻塞
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
                     throw new InterruptedException();
@@ -1138,7 +1163,6 @@ public abstract class AbstractQueuedSynchronizer
      *
      * 为什么不直接定义成抽象类呢？
      *      - 子类并不需要实现所有的方法
-     *
      */
 
     /**
@@ -1304,7 +1328,8 @@ public abstract class AbstractQueuedSynchronizer
      *        {@link #tryAcquire} but is otherwise uninterpreted and
      *        can represent anything you like.
      *
-     * 获取锁
+     * 获取锁（被上层的lock()方法调用）
+     *  - 如果拿不锁 --> 自旋尝试拿锁 --> 判定线程挂起 ---> 线程阻塞 --> 直到拿到锁
      */
     public final void acquire(int arg) {
         // addWaiter(Node.EXCLUSIVE) 方法对获锁失败的线程放入到队列中排队等待，
@@ -1328,6 +1353,8 @@ public abstract class AbstractQueuedSynchronizer
      *        {@link #tryAcquire} but is otherwise uninterpreted and
      *        can represent anything you like.
      * @throws InterruptedException if the current thread is interrupted
+     *
+     * 获取锁(可阻断的)
      */
     public final void acquireInterruptibly(int arg)
             throws InterruptedException {
@@ -1353,6 +1380,8 @@ public abstract class AbstractQueuedSynchronizer
      * @param nanosTimeout the maximum number of nanoseconds to wait
      * @return {@code true} if acquired; {@code false} if timed out
      * @throws InterruptedException if the current thread is interrupted
+     *
+     * 在【排他锁】模式, 尝试"获锁"，超时返回false。
      */
     public final boolean tryAcquireNanos(int arg, long nanosTimeout)
             throws InterruptedException {

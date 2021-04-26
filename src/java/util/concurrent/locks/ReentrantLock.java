@@ -171,6 +171,9 @@ public class ReentrantLock implements Lock, java.io.Serializable {
             return free;
         }
 
+        /**
+         * 当期线程是否持有该锁
+         */
         protected final boolean isHeldExclusively() {
             // While we must in general read state before owner,
             // we don't need to do so to check if current thread is owner
@@ -216,13 +219,15 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         /**
          * Performs lock.  Try immediate barge, backing up to normal
          * acquire on failure.
+         *
+         * 获取锁，获取失败，将线程放入等待队列中去，继续自旋+
          */
         final void lock() {
             // 如果成功更新state=1，设置当前线程占有锁（独占访问权限）
-            if (compareAndSetState(0, 1))
+            if (compareAndSetState(0, 1)) // 非公平锁，先抢一次锁。
                 setExclusiveOwnerThread(Thread.currentThread());
             else
-                // 获取
+                // 获取锁(直到获取到锁为止)
                 acquire(1);
         }
 
@@ -311,7 +316,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      * purposes and lies dormant until the lock has been acquired,
      * at which time the lock hold count is set to one.
      *
-     * 加锁
+     * 加锁, 拿不到锁不罢休，直到拿到锁为止
      */
     public void lock() {
         sync.lock();
@@ -392,6 +397,8 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      * @return {@code true} if the lock was free and was acquired by the
      *         current thread, or the lock was already held by the current
      *         thread; and {@code false} otherwise
+     *
+     * 尝试获取锁，马上返回，拿到lock就返回true，不然返回false
      */
     public boolean tryLock() {
         return sync.nonfairTryAcquire(1);
@@ -468,6 +475,8 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      *         the lock could be acquired
      * @throws InterruptedException if the current thread is interrupted
      * @throws NullPointerException if the time unit is null
+     *
+     *  尝试获取锁，在【timeout】时间内拿到lock就返回true，不然返回false
      */
     public boolean tryLock(long timeout, TimeUnit unit)
             throws InterruptedException {
@@ -606,6 +615,8 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      *
      * @return {@code true} if current thread holds this lock and
      *         {@code false} otherwise
+     *
+     *  查询此锁是否被当前线程持有
      */
     public boolean isHeldByCurrentThread() {
         return sync.isHeldExclusively();

@@ -136,7 +136,7 @@ public class LockSupport {
      * @param thread the thread to unpark, or {@code null}, in which case
      *        this operation has no effect
      *
-     * 线程唤醒
+     * 线程唤醒（将挂起的线程唤醒）
      */
     public static void unpark(Thread thread) {
         if (thread != null)
@@ -171,7 +171,8 @@ public class LockSupport {
      *        thread parking
      * @since 1.6
      *
-     * 禁用当前线程用于线程调度目的，除非允许可用。
+     * 线程挂起(等待)
+     * - 禁用当前线程用于线程调度目的，除非允许可用。
      */
     public static void park(Object blocker) {
         Thread t = Thread.currentThread();
@@ -211,6 +212,8 @@ public class LockSupport {
      *        thread parking
      * @param nanos the maximum number of nanoseconds to wait
      * @since 1.6
+     *
+     * 超时(nanos)将线程挂起（等待）
      */
     public static void parkNanos(Object blocker, long nanos) {
         if (nanos > 0) {
