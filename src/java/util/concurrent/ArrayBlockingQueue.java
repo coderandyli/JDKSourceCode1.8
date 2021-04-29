@@ -78,6 +78,8 @@ import java.util.Spliterator;
  * @since 1.5
  * @author Doug Lea
  * @param <E> the type of elements held in this collection
+ *
+ * 基于数组和ReentrantLock Condition 实现有界限的阻塞队列.
  */
 public class ArrayBlockingQueue<E> extends AbstractQueue<E>
         implements BlockingQueue<E>, java.io.Serializable {
@@ -91,15 +93,19 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
     private static final long serialVersionUID = -817911632652898426L;
 
     /** The queued items */
+    // 缓冲队列
     final Object[] items;
 
     /** items index for next take, poll, peek or remove */
+    // 读索引
     int takeIndex;
 
     /** items index for next put, offer, or add */
+    // 写索引
     int putIndex;
 
     /** Number of elements in the queue */
+    // 队列中数据个数
     int count;
 
     /*
@@ -108,13 +114,16 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      */
 
     /** Main lock guarding all access */
-    final ReentrantLock lock;
+    /** 锁对象 */
+    final ReentrantLock lock; //
 
     /** Condition for waiting takes */
-    private final Condition notEmpty;
+    /** 读线程条件 */
+    private final Condition notEmpty; //
 
     /** Condition for waiting puts */
-    private final Condition notFull;
+    /** 写线程条件 */
+    private final Condition notFull; //
 
     /**
      * Shared state for currently active iterators, or null if there
@@ -153,21 +162,24 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
     /**
      * Inserts element at current put position, advances, and signals.
      * Call only when holding lock.
+     *
+     * 入队（仅仅在持有锁的时候，可以被调用）
      */
     private void enqueue(E x) {
         // assert lock.getHoldCount() == 1;
         // assert items[putIndex] == null;
         final Object[] items = this.items;
-        items[putIndex] = x;
-        if (++putIndex == items.length)
-            putIndex = 0;
+        items[putIndex] = x; // 赋值
+        if (++putIndex == items.length) putIndex = 0; // 如果写索引到达队列最后的位置，将写索引设置为0
         count++;
-        notEmpty.signal();
+        notEmpty.signal(); // 唤醒读线程
     }
 
     /**
      * Extracts element at current take position, advances, and signals.
      * Call only when holding lock.
+     *
+     * 出列（仅仅在持有锁的时候，可以被调用）
      */
     private E dequeue() {
         // assert lock.getHoldCount() == 1;
@@ -176,12 +188,11 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
         @SuppressWarnings("unchecked")
         E x = (E) items[takeIndex];
         items[takeIndex] = null;
-        if (++takeIndex == items.length)
-            takeIndex = 0;
+        if (++takeIndex == items.length) takeIndex = 0; // 如果读索引到队列的最后位置，将读索引设置为0
         count--;
         if (itrs != null)
             itrs.elementDequeued();
-        notFull.signal();
+        notFull.signal(); // 唤醒写线程
         return x;
     }
 
@@ -399,8 +410,7 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
         final ReentrantLock lock = this.lock;
         lock.lockInterruptibly();
         try {
-            while (count == 0)
-                notEmpty.await();
+            while (count == 0) notEmpty.await(); // 队列中还没有数据，读等待
             return dequeue();
         } finally {
             lock.unlock();
