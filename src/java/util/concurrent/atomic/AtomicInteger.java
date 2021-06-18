@@ -17,24 +17,30 @@ import sun.misc.Unsafe;
  * @author Doug Lea
  *
  * 基于【CAS】+ 自旋实现，详见{@link AtomicInteger#incrementAndGet()}
+ *
+ * Reference
+ * - https://cloud.tencent.com/developer/article/1508531《AtomicInteger源码分析详解》
 */
 public class AtomicInteger extends Number implements java.io.Serializable {
     private static final long serialVersionUID = 6214790243416807050L;
 
     // 获取并操作内存的数据
     // setup to use Unsafe.compareAndSwapInt for updates
-    private static final Unsafe unsafe = Unsafe.getUnsafe();
-    // 存储value在AtomicInteger中的偏移量
+    private static final Unsafe unsafe = Unsafe.getUnsafe(); // Unsafe类用来在任意内存地址位置处读写数据
+    // value的相对于AtomicInteger对象的地址偏移量
     private static final long valueOffset;
 
     static {
         try {
-            valueOffset = unsafe.objectFieldOffset
-                (AtomicInteger.class.getDeclaredField("value"));
+            valueOffset = unsafe.objectFieldOffset // 获取某个字段相对Java对象的“起始地址”的偏移量
+                (AtomicInteger.class.getDeclaredField("value")); // 拿到atomicInteger的value字段的field对象
         } catch (Exception ex) { throw new Error(ex); }
     }
 
-    // 存储AtomicInteger的int值，借助volatile保证其在线程间是可见的
+    /**
+     * 存储AtomicInteger的int值，借助volatile保证其在线程间是可见的
+     * 下面的操作围绕value展开
+     */
     private volatile int value;
 
     /**
@@ -54,6 +60,7 @@ public class AtomicInteger extends Number implements java.io.Serializable {
 
     /**
      * Gets the current value.
+     * 获取当前值
      *
      * @return the current value
      */
@@ -63,6 +70,7 @@ public class AtomicInteger extends Number implements java.io.Serializable {
 
     /**
      * Sets to the given value.
+     * 设置给定值
      *
      * @param newValue the new value
      */
@@ -82,6 +90,7 @@ public class AtomicInteger extends Number implements java.io.Serializable {
 
     /**
      * Atomically sets to the given value and returns the old value.
+     * 原子级设置为给定值并返回旧值。
      *
      * @param newValue the new value
      * @return the previous value
@@ -149,6 +158,8 @@ public class AtomicInteger extends Number implements java.io.Serializable {
 
     /**
      * Atomically increments by one the current value.
+     *
+     * 原子级上当前值加1
      *
      * @return the updated value
      */

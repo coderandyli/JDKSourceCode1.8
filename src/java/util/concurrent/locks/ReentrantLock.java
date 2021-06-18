@@ -258,9 +258,6 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         protected final boolean tryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
             int c = getState();
-            /**
-             *
-             */
             if (c == 0) {
                 // 判断当前线程是否位于同步队列中的第一个，
                 // 与非公平锁的唯一区别
