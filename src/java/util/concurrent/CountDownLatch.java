@@ -157,11 +157,13 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
  * @since 1.5
  *
  * CountDownLatch是 一种同步辅助工具，允许一个或多个线程等待，直到在其他线程中执行的一组操作完成。
+ *
+ * https://blog.csdn.net/aacm1992/article/details/88707512
  */
 public class CountDownLatch {
     /**
      * Synchronization control For CountDownLatch.
-     * Uses AQS state to represent count.
+     * Uses AQS state to represent count.doAcquireShared
      * <p>
      * 基于AQS的内部Sync
      * 使用AQS的state来表示计数count
@@ -247,7 +249,7 @@ public class CountDownLatch {
      *  会调用 {@link AbstractQueuedSynchronizer#tryAcquireShared(int)}
      */
     public void await() throws InterruptedException {
-        sync.acquireSharedInterruptibly(1);
+        sync.acquireSharedInterruptibly(1); // 执行加锁
     }
 
     /**

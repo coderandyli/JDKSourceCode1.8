@@ -303,6 +303,14 @@ import sun.misc.Unsafe;
  * {@link #doAcquireShared(int)}
  * {@link #doAcquireSharedInterruptibly(int)}
  * {@link #doAcquireSharedNanos(int, long)}
+ *
+ * <h3> 线程等待模式 <h3/>
+ * 【互斥模式】（独占模式）
+ *  - 独占模式下，锁只有被抢到和没有抢到两个返回值，即tryAcquire返回的是boolean值类型
+ *
+ * 【共享模式】
+ *
+ *
  * @since 1.5
  */
 public abstract class AbstractQueuedSynchronizer
@@ -655,7 +663,7 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * Inserts node into queue, initializing if necessary. See picture above.
-     * 将节点插入队列，必要时进行初始化.
+     * 入队，将节点插入队列，必要时进行初始化.
      *
      * @param node the node to insert
      * @return node's predecessor
@@ -719,9 +727,9 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * Wakes up node's successor, if one exists.
+     * 唤醒节点的后继节点，如果存在的话
      *
      * @param node the node
-     *             唤醒线程
      */
     private void unparkSuccessor(Node node) {
         /*
@@ -759,6 +767,7 @@ public abstract class AbstractQueuedSynchronizer
      * Release action for shared mode -- signals successor and ensures
      * propagation. (Note: For exclusive mode, release just amounts
      * to calling unparkSuccessor of head if it needs signal.)
+     * 【共享模式】释放操作
      */
     private void doReleaseShared() {
         /*
@@ -820,6 +829,7 @@ public abstract class AbstractQueuedSynchronizer
                 (h = head) == null || h.waitStatus < 0) {
             Node s = node.next;
             if (s == null || s.isShared())
+                // 唤起后继线程去继续获取锁
                 doReleaseShared();
         }
     }
@@ -828,6 +838,7 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * Cancels an ongoing attempt to acquire.
+     * 取消正在进行获取操作的(节点)
      *
      * @param node the node
      */
@@ -885,6 +896,13 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if thread should block; node的线程是应该阻塞
      * <p>
      * 检查并更新获取失败的节点的状态，如果是阻塞线程，返回true.
+     *  <h3> 作用于获锁操作中 <h3/>
+     *  - {@link #acquireQueued(Node, int)}
+     *  - {@link #doAcquireInterruptibly(int)}
+     *  - {@link #doAcquireNanos(int, long)}
+     *  - {@link #doAcquireShared(int)}
+     *  - {@link #doAcquireSharedInterruptibly(int)}
+     *  - {@link #doAcquireSharedNanos(int, long)}
      */
     private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
         // 前驱节点的线程等待状态
@@ -919,6 +937,7 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * Convenience method to interrupt current thread.
+     * 线程中断
      */
     static void selfInterrupt() {
         Thread.currentThread().interrupt();
@@ -953,7 +972,7 @@ public abstract class AbstractQueuedSynchronizer
      * @param arg  the acquire argument
      * @return {@code true} if interrupted while waiting
      * <p>
-     * 【排他】模式下从【等待队列】中获取锁，直到获取锁为止
+     * 【排他模式】下从【等待队列】中获取锁，直到获取锁为止
      * - 获取锁（被上层的lock()方法调用） (如果拿不锁 --> 自旋尝试拿锁 --> 判定线程挂起 ---> 线程阻塞 --> 直到拿到锁)
      * - {@link ReentrantLock#lock()} 方法实现的核心逻辑
      */
@@ -1008,7 +1027,7 @@ public abstract class AbstractQueuedSynchronizer
                     failed = false;
                     return;
                 }
-                //
+                // 判断线程是否阻塞
                 if (shouldParkAfterFailedAcquire(p, node) &&
                         parkAndCheckInterrupt())
                     throw new InterruptedException();
@@ -1066,7 +1085,7 @@ public abstract class AbstractQueuedSynchronizer
      * Acquires in shared uninterruptible mode.
      *
      * @param arg the acquire argument
-     *            【分享】模式下从【等待队列】中获取锁，直到获取锁为止
+     *            【共享模式】下从【等待队列】中获取锁，直到获取锁为止
      */
     private void doAcquireShared(int arg) {
         final Node node = addWaiter(Node.SHARED);
@@ -1100,7 +1119,8 @@ public abstract class AbstractQueuedSynchronizer
      * Acquires in shared interruptible mode.
      *
      * @param arg the acquire argument
-     *            【分享】模式下从【等待队列】中获取锁，可中断，线程挂起，抛出【中断异常】
+     *【共享模式】模式下从【等待队列】中获取锁，可中断，线程挂起，抛出【中断异常】
+     *  与【排他模式】下获锁的不同之处在于，如果r >= 0会继续唤起后继节点去获取锁
      */
     private void doAcquireSharedInterruptibly(int arg)
             throws InterruptedException {
@@ -1281,8 +1301,15 @@ public abstract class AbstractQueuedSynchronizer
      *                                       correctly.
      * @throws UnsupportedOperationException if shared mode is not supported
      *                                       <p>
-     *                                       尝试以【共享模式】获取。此方法应该查询对象的状态是否允许以共享模式获取它，如果允许，则获取它。
-     *                                       【共享模式】下使用：尝试获取锁
+     *
+     * 尝试以【共享模式】获取。此方法应该查询对象的状态是否允许以共享模式获取它，如果允许，则获取它。
+     *【共享模式】下使用：尝试获取锁
+     *
+     * 返回值分为三种情况
+     * **每当**
+     * - 如果该值小于0，则代表当前线程获取共享锁失败
+     * - 如果该值大于0，则代表当前线程获取共享锁成功，并且接下来其他线程尝试获取共享锁的行为很可能成功
+     * - 如果该值等于0，则代表当前线程获取共享锁成功，但是接下来其他线程尝试获取共享锁的行为会失败
      */
     protected int tryAcquireShared(int arg) {
         throw new UnsupportedOperationException();
