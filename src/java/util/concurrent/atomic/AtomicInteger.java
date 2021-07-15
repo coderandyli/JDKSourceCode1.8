@@ -40,6 +40,8 @@ public class AtomicInteger extends Number implements java.io.Serializable {
     /**
      * 存储AtomicInteger的int值，借助volatile保证其在线程间是可见的
      * 下面的操作围绕value展开
+     *
+     * volatile + CAS
      */
     private volatile int value;
 
@@ -170,7 +172,7 @@ public class AtomicInteger extends Number implements java.io.Serializable {
          * 以下是【unsafe.getAndAddInt】方法
          *     public final int getAndAddInt(Object o, long offset, int delta) {
          *
-         *         // 自旋操作
+         *         // 自旋操作 CAS
          *         int v;
          *         do {
          *             // 循环获取给定对象o中的偏移量处的值v

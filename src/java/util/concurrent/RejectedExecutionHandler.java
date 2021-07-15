@@ -38,6 +38,8 @@ package java.util.concurrent;
 /**
  * A handler for tasks that cannot be executed by a {@link ThreadPoolExecutor}.
  *
+ * 拒绝策略接口
+ *
  * @since 1.5
  * @author Doug Lea
  */
