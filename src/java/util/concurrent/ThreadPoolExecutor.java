@@ -291,6 +291,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * two conceptual fields
      * workerCount, indicating the effective number of threads
      * runState,    indicating whether running, shutting down etc
+     * 主要的控制字段 ctl，包含两个属性，workerCount(有效线程数)、runState(线程运行状态)
+     *
      * <p>
      * In order to pack them into one int, we limit workerCount to
      * (2^29)-1 (about 500 million) threads rather than (2^31)-1 (2
@@ -343,11 +345,15 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * that workerCount is 0 (which sometimes entails a recheck -- see
      * below).
      */
+    /**
+     * 记录线程池的运行状态 (runState) 和线程池内有效线程的数量 (workerCount)
+     * - 高3位保存runState，低29位保存workerCount，两个变量之间互不干扰。用一个变量去存储两个值，可避免在做相关决策时，出现不一致的情况，不必为了维护两者的一致，而占用锁资源，通过阅读线程池源代码也可以发现，经常出现要同时判断线程池运行状态和线程数量的情况
+     */
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
     private static final int CAPACITY = (1 << COUNT_BITS) - 1;
 
-    // runState is stored in the high-order bits  线程池状态
+    // runState is stored in the high-order bits  线程池的五种状态
     private static final int RUNNING = -1 << COUNT_BITS; // 能接受新提交的任务，并且也能处理阻塞队列中的任务
     private static final int SHUTDOWN = 0 << COUNT_BITS; // 关闭状态，不能接收新提交的任务，但能基础处理阻塞队列中的任务
     private static final int STOP = 1 << COUNT_BITS; // 不接收新的任务，也不处理队列中的任务，会中断正在执行的任务的线程
@@ -360,10 +366,12 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     private static int runStateOf(int c) {
         return c & ~CAPACITY;
     }
+
     // 计算当期线程数量
     private static int workerCountOf(int c) {
         return c & CAPACITY;
     }
+
     // 通过状态和线程数量生成ctl
     private static int ctlOf(int rs, int wc) {
         return rs | wc;
@@ -424,7 +432,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * 就一定意味着workQueue.isEmpty()，因此仅依赖isEmpty来查看队列是否为空
      * （例如，当决定是否从SHUTDOWN转换到TIDYING时，我们必须这样做）这适用于某些特殊用途的队列，
      * 比如DelayQueues，允许poll()返回null，即使稍后在延迟过期时可能返回非null。
-     *
+     * <p>
      * 工作队列
      */
     private final BlockingQueue<Runnable> workQueue;
@@ -458,12 +466,14 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     /**
      * Tracks largest attained pool size. Accessed only under
      * mainLock.
+     * 记录线程池最大值
      */
     private int largestPoolSize;
 
     /**
      * Counter for completed tasks. Updated only on termination of
      * worker threads. Accessed only under mainLock.
+     * 已完成的任务数量
      */
     private long completedTaskCount;
 
@@ -482,6 +492,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * treated as an error, failure to create threads may result in
      * new tasks being rejected or existing ones remaining stuck in
      * the queue.
+     * 线程创建工厂，所有线程都被该工厂创建(通过addWorker方法)
+     *
      * <p>
      * We go further and preserve pool invariants even in the face of
      * errors such as OutOfMemoryError, that might be thrown while
@@ -490,11 +502,13 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * will want to perform clean pool shutdown to clean up.  There
      * will likely be enough memory available for the cleanup code to
      * complete without encountering yet another OutOfMemoryError.
+     * 线程工厂，
      */
     private volatile ThreadFactory threadFactory;
 
     /**
      * Handler called when saturated or shutdown in execute.
+     * 拒绝策略（处理器）
      */
     private volatile RejectedExecutionHandler handler;
 
@@ -503,6 +517,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Threads use this timeout when there are more than corePoolSize
      * present or if allowCoreThreadTimeOut. Otherwise they wait
      * forever for new work.
+     * 【意译】等待工作的空闲线程的超时(以纳秒为单位)时间（当allowCoreThreadTimeOut = true时核心线程也会有超时时间）
      */
     private volatile long keepAliveTime;
 
@@ -510,6 +525,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * If false (default), core threads stay alive even when idle.
      * If true, core threads use keepAliveTime to time out waiting
      * for work.
+     * 如果为false(默认)，即使核心线程空闲，也会一直保持存活状态
+     * 如果为true,核心线程也会有超时时间
      */
     private volatile boolean allowCoreThreadTimeOut;
 
@@ -517,18 +534,21 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Core pool size is the minimum number of workers to keep alive
      * (and not allow to time out etc) unless allowCoreThreadTimeOut
      * is set, in which case the minimum is zero.
+     * 核心线程数是最小活跃工作线程数（不允许超时），除非设置了allowCoreThreadTimeOut=true,
+     * 在这种情况下，最小（活跃工作线程数）为0
      */
     private volatile int corePoolSize;
 
     /**
      * Maximum pool size. Note that the actual maximum is internally
      * bounded by CAPACITY.
+     * 最大线程数，注意实际的最大线程已容量为边界
      */
     private volatile int maximumPoolSize;
 
     /**
      * The default rejected execution handler
-     * 默认的
+     * 默认的拒绝策略
      */
     private static final RejectedExecutionHandler defaultHandler =
             new AbortPolicy();
@@ -541,6 +561,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * ThreadGroup.checkAccess, which in turn relies on
      * SecurityManager.checkAccess). Shutdowns are attempted only if
      * these checks pass.
+     * 调用者shutdown或shutdownNow需要有权限，另外 see {@link #checkShutdownAccess()}
+     *
      * <p>
      * All actual invocations of Thread.interrupt (see
      * interruptIdleWorkers and interruptWorkers) ignore
@@ -552,20 +574,23 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * termination. Other uses of interruptIdleWorkers are advisory,
      * and failure to actually interrupt will merely delay response to
      * configuration changes so is not handled exceptionally.
+     *
+     * 运行权限，
      */
     private static final RuntimePermission shutdownPerm =
             new RuntimePermission("modifyThread");
 
     /* The context to be used when executing the finalizer, or null. */
+    // todo
     private final AccessControlContext acc;
 
     /**
-     * Class Worker mainly maintains interrupt control state for
-     * threads running tasks, along with other minor bookkeeping.
+     * Class Worker mainly maintains(维护) interrupt control state for
+     * threads running tasks, along with other minor bookkeeping(记账).
      * This class opportunistically extends AbstractQueuedSynchronizer
-     * to simplify acquiring and releasing a lock surrounding each
-     * task execution.  This protects against interrupts that are
-     * intended to wake up a worker thread waiting for a task from
+     * to simplify acquiring and releasing a lock surrounding（周围的） each
+     * task execution.  This protects（保护） against（反对） interrupts that are
+     * intended（故意的） to wake up a worker thread waiting for a task from
      * instead interrupting a task being run.  We implement a simple
      * non-reentrant mutual exclusion lock rather than use
      * ReentrantLock because we do not want worker tasks to be able to
@@ -574,7 +599,17 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * the thread actually starts running tasks, we initialize lock
      * state to a negative value, and clear it upon start (in
      * runWorker).
+     * Class Worker主要为运行任务的线程维护中断控制状态，以及其他次要的记录。
+     * 这个类有机会扩展AbstractQueuedSynchronizer，以简化获取和释放围绕每个任务执行的锁。
+     * 这样可以防止中断，这些中断是为了唤醒正在等待任务的工作线程，而不是中断正在运行的任务。
      *
+     * 我们实现了一个简单的不可重入的互斥锁，而不是使用ReentrantLock，因为我们不希望工作任务在调用setCorePoolSize之类
+     * 的池控制方法时能够重新获得锁
+     *
+     * 此外，为了在线程实际开始运行任务之前抑制中断，我们将锁状态初始化为负值，并在启动时清除它(在runWorker中)。
+     *
+     * todo
+     * <p>
      * 工作线程
      */
     private final class Worker
@@ -598,6 +633,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         Runnable firstTask;
         /**
          * Per-thread task counter
+         * 线程任务计数器
          */
         volatile long completedTasks;
 
@@ -614,6 +650,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
         /**
          * Delegates main run loop to outer runWorker
+         * 将主运行循环委派给外部runWorker方法
          */
         public void run() {
             runWorker(this);
@@ -621,8 +658,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
         // Lock methods
         //
-        // The value 0 represents the unlocked state.
-        // The value 1 represents the locked state.
+        // The value 0 represents the unlocked state.  value为0,表示解锁状态
+        // The value 1 represents the locked state.    value为1,表示加锁状态
 
         protected boolean isHeldExclusively() {
             return getState() != 0;
@@ -676,9 +713,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     /**
      * Transitions runState to given target, or leaves it alone if
      * already at least the given target.
+     * 转换 运行状态 到 目前状态，或者如果有了目标状态，就别管它
      *
-     * @param targetState the desired state, either SHUTDOWN or STOP
+     * @param targetState the desired state, either SHUTDOWN or STOP  目标状态
      *                    (but not TIDYING or TERMINATED -- use tryTerminate for that)
+     * 推进(转换)运行状态
      */
     private void advanceRunState(int targetState) {
         for (; ; ) {
@@ -691,13 +730,19 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
     /**
      * Transitions to TERMINATED state if either (SHUTDOWN and pool
-     * and queue empty) or (STOP and pool empty).  If otherwise
-     * eligible to terminate but workerCount is nonzero, interrupts an
-     * idle worker to ensure that shutdown signals propagate. This
+     * and queue empty) or (STOP and pool empty).  If otherwise（否则）
+     * eligible（合格的） to terminate but workerCount is nonzero, interrupts an
+     * idle worker to ensure that shutdown signals propagate(传输). This
      * method must be called following any action that might make
      * termination possible -- reducing worker count or removing tasks
      * from the queue during shutdown. The method is non-private to
      * allow access from ScheduledThreadPoolExecutor.
+     * 如果(SHUTDOWN和池和队列为空)或(STOP和池为空)，则转换为TERMINATED状态。
+     * 如果在其他方面符合终止条件，但workerCount不为零，则中断空闲的工作线程，
+     * 以确保关闭信号传播。此方法必须在任何可能使终止成为可能的操作之后调用——在关闭
+     * 期间减少worker计数或从队列中删除任务。该方法是非私有的，允许ScheduledThreadPoolExecutor访问
+     *
+     * 尝试终止
      */
     final void tryTerminate() {
         for (; ; ) {
@@ -902,7 +947,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *                  value to ensure reads of fresh values after checking other pool
      *                  state).
      * @return true if successful
-     *
+     * <p>
      * 增加worker线程
      */
     private boolean addWorker(Runnable firstTask, boolean core) {
@@ -1048,7 +1093,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *
      * @return task, or null if the worker must exit, in which case
      * workerCount is decremented
-     *
+     * <p>
      * 获取任务/任务申请
      * 实现【线程管理】模块与【任务管理】模块之间的通信
      */
@@ -1130,8 +1175,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * user code.
      *
      * @param w the worker
-     *
-     * worker线程执行任务
+     *          <p>
+     *          worker线程执行任务
      */
     final void runWorker(Worker w) {
         Thread wt = Thread.currentThread();
@@ -1335,9 +1380,14 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Executes the given task sometime in the future.  The task
      * may execute in a new thread or in an existing pooled thread.
      * <p>
+     * 在未来的某个时间内执行给定的任务，该任务可能在一个新的线程或线程池的线程中执行
+     *
+     * <p>
      * If the task cannot be submitted for execution, either because this
      * executor has been shutdown or because its capacity has been reached,
      * the task is handled by the current {@code RejectedExecutionHandler}.
+     * 如果任务不能被提交执行，可能因为执行器(executor)已经关闭，或者容量已经达到阈值。
+     * 该任务会被{@code RejectedExecutionHandler}处理。
      *
      * @param command the task to execute
      * @throws RejectedExecutionException at discretion of
@@ -2036,7 +2086,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * directly in the calling thread of the {@code execute} method,
      * unless the executor has been shut down, in which case the task
      * is discarded.
-     *
+     * <p>
      * 由调用线程(提交任务的线程)处理该任务。这种情况需要让所有任务都执行完毕，适合大量计算型的任务去执行，
      * 多线程仅仅是增大吞吐量的手段，最终必须让每个任务都执行完毕
      */
@@ -2065,8 +2115,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * A handler for rejected tasks that throws a
      * {@code RejectedExecutionException}.
      * 默认拒绝策略，丢弃任务并抛出RejectedExecutionException异常，
-     *  在任务不能提交的时候，抛出异常，及时反馈程序运行状态，对于比较重要的业务推荐使用此策略，
-     *  这样系统不能承载大的并发量时，可以及时通过异常发现
+     * 在任务不能提交的时候，抛出异常，及时反馈程序运行状态，对于比较重要的业务推荐使用此策略，
+     * 这样系统不能承载大的并发量时，可以及时通过异常发现
      */
     public static class AbortPolicy implements RejectedExecutionHandler {
         /**
@@ -2115,7 +2165,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * A handler for rejected tasks that discards the oldest unhandled
      * request and then retries {@code execute}, unless the executor
      * is shut down, in which case the task is discarded.
-     *
+     * <p>
      * 抛弃队列最前面的任务，然后重新提交被拒绝的任务
      */
     public static class DiscardOldestPolicy implements RejectedExecutionHandler {

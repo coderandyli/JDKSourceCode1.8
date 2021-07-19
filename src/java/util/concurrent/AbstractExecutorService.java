@@ -48,6 +48,9 @@ import java.util.*;
  * to return {@code RunnableFuture} implementations other than
  * {@code FutureTask}.
  *
+ * {@link ExecutorService} 的默认实现，
+ *
+ *
  * <p><b>Extension example</b>. Here is a sketch of a class
  * that customizes {@link ThreadPoolExecutor} to use
  * a {@code CustomTask} class instead of the default {@code FutureTask}:
@@ -67,6 +70,9 @@ import java.util.*;
  *
  * @since 1.5
  * @author Doug Lea
+ *
+ * AbstractExecutorService 是上层的抽象类，将执行任务的流程串联起来，保证下层的实现只需关注一个执行任务的方法即可
+ *
  */
 public abstract class AbstractExecutorService implements ExecutorService {
 

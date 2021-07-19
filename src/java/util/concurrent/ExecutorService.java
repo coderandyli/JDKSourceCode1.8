@@ -133,6 +133,10 @@ import java.util.Collection;
  *
  * @since 1.5
  * @author Doug Lea
+ *
+ * 继承自{@link Executor} 扩展了一些能力，1）扩充执行任务的能力，补充可以为一个或一批异步任务生成Future的方法；
+ * （2）提供了管控线程池的方法，比如停止线程池的运行。
+ *
  */
 public interface ExecutorService extends Executor {
 
