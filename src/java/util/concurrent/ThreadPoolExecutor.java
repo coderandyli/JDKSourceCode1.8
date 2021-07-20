@@ -242,7 +242,7 @@ import java.util.*;
  * override one or more of the protected hook methods. For example,
  * here is a subclass that adds a simple pause/resume feature:
  *
- *  <pre> {@code
+ * <pre> {@code
  * class PausableThreadPoolExecutor extends ThreadPoolExecutor {
  *   private boolean isPaused;
  *   private ReentrantLock pauseLock = new ReentrantLock();
@@ -347,7 +347,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      */
     /**
      * 记录线程池的运行状态 (runState) 和线程池内有效线程的数量 (workerCount)
-     * - 高3位保存runState，低29位保存workerCount，两个变量之间互不干扰。用一个变量去存储两个值，可避免在做相关决策时，出现不一致的情况，不必为了维护两者的一致，而占用锁资源，通过阅读线程池源代码也可以发现，经常出现要同时判断线程池运行状态和线程数量的情况
+     * - 高3位保存runState，低29位保存workerCount，两个变量之间互不干扰。用一个变量去存储两个值，
+     * 可避免在做相关决策时，出现不一致的情况，不必为了维护两者的一致，而占用锁资源，通过阅读线程池源代码也可以发现，经常出现要同时判断 线程池运行状态 和 线程数量 的情况
      */
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
@@ -374,7 +375,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
     // 通过状态和线程数量生成ctl
     private static int ctlOf(int rs, int wc) {
-        return rs | wc;
+        return rs | wc; // 按位或运算符  -- 将两个数据的二进制表示右对齐后，参加运算的两个对象只要有一个为1，其值为1。
     }
 
     /*
@@ -574,7 +575,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * termination. Other uses of interruptIdleWorkers are advisory,
      * and failure to actually interrupt will merely delay response to
      * configuration changes so is not handled exceptionally.
-     *
+     * <p>
      * 运行权限，
      */
     private static final RuntimePermission shutdownPerm =
@@ -602,12 +603,12 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Class Worker主要为运行任务的线程维护中断控制状态，以及其他次要的记录。
      * 这个类有机会扩展AbstractQueuedSynchronizer，以简化获取和释放围绕每个任务执行的锁。
      * 这样可以防止中断，这些中断是为了唤醒正在等待任务的工作线程，而不是中断正在运行的任务。
-     *
+     * <p>
      * 我们实现了一个简单的不可重入的互斥锁，而不是使用ReentrantLock，因为我们不希望工作任务在调用setCorePoolSize之类
      * 的池控制方法时能够重新获得锁
-     *
+     * <p>
      * 此外，为了在线程实际开始运行任务之前抑制中断，我们将锁状态初始化为负值，并在启动时清除它(在runWorker中)。
-     *
+     * <p>
      * todo
      * <p>
      * 工作线程
@@ -717,7 +718,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *
      * @param targetState the desired state, either SHUTDOWN or STOP  目标状态
      *                    (but not TIDYING or TERMINATED -- use tryTerminate for that)
-     * 推进(转换)运行状态
+     *                    推进(转换)运行状态
      */
     private void advanceRunState(int targetState) {
         for (; ; ) {
@@ -741,7 +742,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * 如果在其他方面符合终止条件，但workerCount不为零，则中断空闲的工作线程，
      * 以确保关闭信号传播。此方法必须在任何可能使终止成为可能的操作之后调用——在关闭
      * 期间减少worker计数或从队列中删除任务。该方法是非私有的，允许ScheduledThreadPoolExecutor访问
-     *
+     * <p>
      * 尝试终止
      */
     final void tryTerminate() {
