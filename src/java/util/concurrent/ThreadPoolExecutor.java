@@ -413,6 +413,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Decrements the workerCount field of ctl. This is called only on
      * abrupt termination of a thread (see processWorkerExit). Other
      * decrements are performed within getTask.
+     *
+     * 工作线程数递减
      */
     private void decrementWorkerCount() {
         do {
@@ -439,7 +441,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     private final BlockingQueue<Runnable> workQueue;
 
     /**
-     * Lock held on access to workers set and related bookkeeping.
+     * Lock held on access to workers set and related bookkeeping（记账）.
      * While we could use a concurrent set of some sort, it turns out
      * to be generally preferable to use a lock. Among the reasons is
      * that this serializes interruptIdleWorkers, which avoids
@@ -450,17 +452,26 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * also hold mainLock on shutdown and shutdownNow, for the sake of
      * ensuring workers set is stable while separately checking
      * permission to interrupt and actually interrupting.
+     *
+     * 锁持有的访问工作线程(权限)和相关的簿记。虽然我们可以使用某种类型的并发集合，但事实证明，使用锁通常更可取。
+     * 其中一个原因是它序列化了interruptIdleWorkers，这避免了不必要的中断风暴，特别是在关闭（shundown）期间。
+     * 否则，退出的线程将并发地中断那些尚未中断的线程。它还简化了一些相关的统计信息，如largestPoolSize的记录等。我们
+     * 同时在shutdown和shutdownNow时保持mainLock，以确保工人设置稳定，同时分别检查中断权限和实际中断权限。
+     *
+     * todo
      */
     private final ReentrantLock mainLock = new ReentrantLock();
 
     /**
      * Set containing all worker threads in pool. Accessed only when
      * holding mainLock.
+     * 该集合包含线程池中所有工作线程，但仅在持有mainLock锁是可以访问
      */
     private final HashSet<Worker> workers = new HashSet<Worker>();
 
     /**
      * Wait condition to support awaitTermination
+     * 支持等待终止的等待条件
      */
     private final Condition termination = mainLock.newCondition();
 
@@ -601,11 +612,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * state to a negative value, and clear it upon start (in
      * runWorker).
      * Class Worker主要为运行任务的线程维护中断控制状态，以及其他次要的记录。
-     * 这个类有机会扩展AbstractQueuedSynchronizer，以简化获取和释放围绕每个任务执行的锁。
+     * 这个类扩展AbstractQueuedSynchronizer，以简化获取和释放围绕每个任务执行的锁。
      * 这样可以防止中断，这些中断是为了唤醒正在等待任务的工作线程，而不是中断正在运行的任务。
      * <p>
      * 我们实现了一个简单的不可重入的互斥锁，而不是使用ReentrantLock，因为我们不希望工作任务在调用setCorePoolSize之类
-     * 的池控制方法时能够重新获得锁
+     * 的池控制方法时能够重新获得锁（todo）
      * <p>
      * 此外，为了在线程实际开始运行任务之前抑制中断，我们将锁状态初始化为负值，并在启动时清除它(在runWorker中)。
      * <p>
@@ -696,6 +707,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             return isHeldExclusively();
         }
 
+
+        // 中断线程，如果已经开始
         void interruptIfStarted() {
             Thread t;
             if (getState() >= 0 && (t = thread) != null && !t.isInterrupted()) {
@@ -738,6 +751,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * termination possible -- reducing worker count or removing tasks
      * from the queue during shutdown. The method is non-private to
      * allow access from ScheduledThreadPoolExecutor.
+     *
      * 如果(SHUTDOWN和池和队列为空)或(STOP和池为空)，则转换为TERMINATED状态。
      * 如果在其他方面符合终止条件，但workerCount不为零，则中断空闲的工作线程，
      * 以确保关闭信号传播。此方法必须在任何可能使终止成为可能的操作之后调用——在关闭
@@ -787,6 +801,12 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * to interrupt each worker thread. This might not be true even if
      * first check passed, if the SecurityManager treats some threads
      * specially.
+     *
+     * 如果有安全管理器，请确保调用者通常有关闭线程的权限(参见shutdownPerm)。
+     * 如果这通过了，另外确保调用者被允许中断每个工作线程。如果SecurityManager对某些线程进行了特殊处理，
+     * 那么即使第一次检查通过，这也可能是错误的。
+     *
+     * 检查关闭权限
      */
     private void checkShutdownAccess() {
         SecurityManager security = System.getSecurityManager();
@@ -806,6 +826,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     /**
      * Interrupts all threads, even if active. Ignores SecurityExceptions
      * (in which case some threads may remain uninterrupted).
+     *
+     * 中断所有工作线程(即使是活跃的)
      */
     private void interruptWorkers() {
         final ReentrantLock mainLock = this.mainLock;
@@ -824,6 +846,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * termination or configuration changes. Ignores
      * SecurityExceptions (in which case some threads may remain
      * uninterrupted).
+     * 中断等待任务的线程(明确的没有被锁定的)
      *
      * @param onlyOne If true, interrupt at most one worker. This is
      *                called only from tryTerminate when termination is otherwise
@@ -836,6 +859,10 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *                interrupt only one idle worker, but shutdown() interrupts all
      *                idle workers so that redundant workers exit promptly, not
      *                waiting for a straggler task to finish.
+     *
+     * 中断空闲线程 (没被终端且未被锁定的线程)
+     *
+     *  终止(termination)、关闭(shutdown)、修改线程池配置信息时可能会被调用
      */
     private void interruptIdleWorkers(boolean onlyOne) {
         final ReentrantLock mainLock = this.mainLock;
@@ -843,10 +870,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         try {
             for (Worker w : workers) {
                 Thread t = w.thread;
+                // 没被终端且未被锁定的线程
                 if (!t.isInterrupted() && w.tryLock()) {
                     try {
                         t.interrupt();
-                    } catch (SecurityException ignore) {
+                    } catch (SecurityException ignore) { // 忽略 SecurityException 异常
                     } finally {
                         w.unlock();
                     }
@@ -877,6 +905,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     /**
      * Invokes the rejected execution handler for the given command.
      * Package-protected for use by ScheduledThreadPoolExecutor.
+     *
+     * 调用拒绝策略处理器
      */
     final void reject(Runnable command) {
         handler.rejectedExecution(command, this);
@@ -886,6 +916,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Performs any further cleanup following run state transition on
      * invocation of shutdown.  A no-op here, but used by
      * ScheduledThreadPoolExecutor to cancel delayed tasks.
+     *
+     * 在调用shutdown时执行运行状态转换之后的任何进一步清理。这里是一个no-op，但被
+     * 用来取消延迟的任务。
      */
     void onShutdown() {
     }
@@ -906,6 +939,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * drainTo. But if the queue is a DelayQueue or any other kind of
      * queue for which poll or drainTo may fail to remove some
      * elements, it deletes them one by one.
+     *
+     * 将任务队列排入到一个新的列表中，通常使用drainTo。但是，如果该队列是DelayQueue或任何其他类型的队列，其中poll或drainTo可能无法删除某些元素，那么它将逐个删除它们。
      */
     private List<Runnable> drainQueue() {
         BlockingQueue<Runnable> q = workQueue;
@@ -950,6 +985,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @return true if successful
      * <p>
      * 增加worker线程
+     *
+     * 添加工作线程到{@link #workers}
+     *
      */
     private boolean addWorker(Runnable firstTask, boolean core) {
         retry:
@@ -1023,6 +1061,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * - decrements worker count
      * - rechecks for termination, in case the existence of this
      * worker was holding up termination
+     *
+     * 工作线程添加失败（相关信息回滚）
      */
     private void addWorkerFailed(Worker w) {
         final ReentrantLock mainLock = this.mainLock;
@@ -1049,6 +1089,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *
      * @param w                 the worker
      * @param completedAbruptly if the worker died due to user exception
+     *
+     * 处理工作线程退出
      */
     private void processWorkerExit(Worker w, boolean completedAbruptly) {
         if (completedAbruptly) // If abrupt, then workerCount wasn't adjusted
@@ -1221,6 +1263,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     }
 
     // Public constructors and methods
+    // 公共构造方法
 
     /**
      * Creates a new {@code ThreadPoolExecutor} with the given initial
@@ -1451,6 +1494,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * to do that.
      *
      * @throws SecurityException {@inheritDoc}
+     *
      */
     public void shutdown() {
         final ReentrantLock mainLock = this.mainLock;
