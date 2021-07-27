@@ -50,6 +50,10 @@ package java.util.concurrent;
  * declare types of the form {@code Future<?>} and
  * return {@code null} as a result of the underlying task.
  *
+ * {@code Future} 表示异步计算结果，提供了检查计算是否完成、等待计算完成和检索计算结果的方法。
+ * 只有当计算完成时，才能使用{@code get}方法检索结果，必要时将阻塞，直到它准备就绪。 ....
+ *
+ *
  * <p>
  * <b>Sample Usage</b> (Note that the following classes are all
  * made-up.)

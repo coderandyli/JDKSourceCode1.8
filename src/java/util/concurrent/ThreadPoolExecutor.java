@@ -203,6 +203,7 @@ import java.util.*;
  * capacity or queuing policies. </dd>
  *
  * <dt>Hook methods</dt>
+ *  钩子方法
  *
  * <dd>This class provides {@code protected} overridable
  * {@link #beforeExecute(Thread, Runnable)} and
@@ -383,10 +384,16 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * These depend on the bit layout and on workerCount being never negative.
      */
 
+    /**
+     * 运行状态不到...
+     */
     private static boolean runStateLessThan(int c, int s) {
         return c < s;
     }
 
+    /**
+     * 运行状态至少...
+     */
     private static boolean runStateAtLeast(int c, int s) {
         return c >= s;
     }
@@ -940,7 +947,10 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * queue for which poll or drainTo may fail to remove some
      * elements, it deletes them one by one.
      *
-     * 将任务队列排入到一个新的列表中，通常使用drainTo。但是，如果该队列是DelayQueue或任何其他类型的队列，其中poll或drainTo可能无法删除某些元素，那么它将逐个删除它们。
+     * 将任务队列排入到一个新的列表中，通常使用drainTo。但是，如果该队列是DelayQueue或任何其他类型的队列，
+     * 其中poll或drainTo可能无法删除某些元素，那么它将逐个删除它们。
+     *
+     * 由{@link #shutdownNow()}调用
      */
     private List<Runnable> drainQueue() {
         BlockingQueue<Runnable> q = workQueue;
@@ -970,6 +980,12 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * creation fails, either due to the thread factory returning
      * null, or due to an exception (typically OutOfMemoryError in
      * Thread.start()), we roll back cleanly.
+     *
+     * 检查是否可以根据当前池状态和给定的绑定(core或maximum)添加一个新的worker（工作线程）。
+     * 如果是，则相应地调整worker计数，并且如果可能，将创建并启动一个新的worker，
+     * 并运行firstTask作为其第一个任务。如果池已停止或符合关闭条件，此方法将返回false。
+     * 如果线程工厂在被要求创建线程时失败，它也返回false。如果线程创建失败，或者是由于线程工厂返回null，
+     * 或者是由于异常(通常是thread .start()中的OutOfMemoryError))，我们会干净地回滚。
      *
      * @param firstTask the task the new thread should run first (or
      *                  null if none). Workers are created with an initial first task
@@ -1050,7 +1066,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             }
         } finally {
             if (!workerStarted)
-                addWorkerFailed(w);
+                addWorkerFailed(w); // 添加工作线程失败
         }
         return workerStarted;
     }
@@ -1166,6 +1182,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             }
 
             try {
+                // 从工作队列中取出
                 Runnable r = timed ? workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) : workQueue.take();
                 if (r != null)
                     return r;
@@ -1228,7 +1245,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         w.unlock(); // allow interrupts
         boolean completedAbruptly = true;
         try {
-            while (task != null || (task = getTask()) != null) {
+            while (task != null || (task = getTask()) != null) { //获取任务
                 w.lock();
                 if ((runStateAtLeast(ctl.get(), STOP) || (Thread.interrupted() && runStateAtLeast(ctl.get(), STOP))) && !wt.isInterrupted()) {
                     wt.interrupt();
@@ -1438,6 +1455,10 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *                                    {@code RejectedExecutionHandler}, if the task
      *                                    cannot be accepted for execution
      * @throws NullPointerException       if {@code command} is null
+     *
+     * 整个线程池的执行入口
+     *
+     * 接口{@link Executor#execute(Runnable)}方法实现
      */
     public void execute(Runnable command) {
         // 若任务为空，则抛 NPE，不能执行空任务
@@ -1488,6 +1509,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Initiates an orderly shutdown in which previously submitted
      * tasks are executed, but no new tasks will be accepted.
      * Invocation has no additional effect if already shut down.
+     *
+     * 启动一个有序的关闭，先前提交的任务将被执行，但不接受新的任务。如果已经关闭，则调用没有额外的效果.
      *
      * <p>This method does not wait for previously submitted tasks to
      * complete execution.  Use {@link #awaitTermination awaitTermination}
@@ -1543,6 +1566,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         return tasks;
     }
 
+    /**
+     * 是否关闭
+     */
     public boolean isShutdown() {
         return !isRunning(ctl.get());
     }
@@ -1556,17 +1582,29 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * ignored or suppressed interruption, causing this executor not
      * to properly terminate.
      *
+     * 如果返回true, 表示该执行器在{@link #shutdown}或{@link #shutdownNow}之后处于终止过程中，
+     * 但尚未完全终止。该方法对调试是有用的。返回{@code true}报告了关闭后的一段足够长的时间，
+     * 这可能表明提交的任务忽略或抑制了中断，导致该执行器不能正确终止。
+     *
      * @return {@code true} if terminating but not yet terminated
+     *
+     * 是否正在中断中
      */
     public boolean isTerminating() {
         int c = ctl.get();
         return !isRunning(c) && runStateLessThan(c, TERMINATED);
     }
 
+    /**
+     * 是否已中断
+     */
     public boolean isTerminated() {
         return runStateAtLeast(ctl.get(), TERMINATED);
     }
 
+    /**
+     * 等待终止
+     */
     public boolean awaitTermination(long timeout, TimeUnit unit)
             throws InterruptedException {
         long nanos = unit.toNanos(timeout);
@@ -1588,6 +1626,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     /**
      * Invokes {@code shutdown} when this executor is no longer
      * referenced and it has no threads.
+     *
+     * 当这个执行器不再被引用并且没有线程时调用{@code shutdown}。
      */
     protected void finalize() {
         SecurityManager sm = System.getSecurityManager();
@@ -1614,6 +1654,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             throw new NullPointerException();
         this.threadFactory = threadFactory;
     }
+
+
+    /**
+     * 以下方法大部分是set/get方法
+     */
 
     /**
      * Returns the thread factory used to create new threads.
@@ -1857,6 +1902,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Removes this task from the executor's internal queue if it is
      * present, thus causing it not to be run if it has not already
      * started.
+     * 如果该任务存在，则将其从执行器的内部队列中移除，从而使其在尚未启动时无法运行。
      *
      * <p>This method may be useful as one part of a cancellation
      * scheme.  It may fail to remove tasks that have been converted
@@ -1884,6 +1930,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * remove them. Invoking this method instead tries to remove them now.
      * However, this method may fail to remove tasks in
      * the presence of interference by other threads.
+     *从工作队列中清除已取消的
      */
     public void purge() {
         final BlockingQueue<Runnable> q = workQueue;
@@ -2053,6 +2100,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * will execute task {@code r}, and may be used to re-initialize
      * ThreadLocals, or to perform logging.
      *
+     * 该方法是钩子方法，在线程中执行Runnable前会调调用，默认没有实现，可在子类中
+     * 自行实现。
+     *
      * <p>This implementation does nothing, but may be customized in
      * subclasses. Note: To properly nest multiple overridings, subclasses
      * should generally invoke {@code super.beforeExecute} at the end of
@@ -2109,6 +2159,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @param r the runnable that has completed
      * @param t the exception that caused termination, or null if
      *          execution completed normally
+     *
+     *  钩子方法，线程任务执行后调用
      */
     protected void afterExecute(Runnable r, Throwable t) {
     }
