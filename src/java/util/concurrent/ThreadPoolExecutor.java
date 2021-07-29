@@ -175,7 +175,7 @@ import java.util.*;
  * 【直接传递】对于工作队列来说，一个好的默认选择是{@link SynchronousQueue}，它可以将任务交给线程，
  * 而不用其他方式保存它们。在这里，如果没有立即可用的线程来运行任务，则尝试将任务排队将失败，
  * 因此将构造一个新线程。当处理可能具有内部依赖项的请求集时，此策略避免了锁定。
- * 直接的切换通常需要不受限制的maximumpoolsize，以避免拒绝新提交的任务。
+ * 直接传递通常需要不受限制的maximumpoolsize，以避免拒绝新提交的任务。
  * 当命令的平均到达速度持续快于它们的处理速度时，这反过来允许线程无限制增长的可能性。
  *
  * <li><em> Unbounded queues.</em> Using an unbounded queue (for
@@ -208,7 +208,7 @@ import java.util.*;
  * generally requires larger pool sizes, which keeps CPUs busier but
  * may encounter unacceptable scheduling overhead, which also
  * decreases throughput.  </li>
- *【有界队列】当使用有界maximumPoolSizes时，有界队列能够防止资源耗尽，但是(这种情况下)很不好调优，
+ *【有界队列】当使用有限的maximumPoolSizes时，有界队列能够防止资源耗尽，但是(这种情况下)很不好调优，
  * 队列大小和最大池大小可以相互权衡:使用大队列和小池可以最小化CPU占用、操作系统资源和上下文切换开销，
  * 但可能导致人为的低吞吐量。如果任务经常阻塞(例如，如果它们是I/O绑定的)，系统可能会(消耗)更多的线程调度时间。
  * 使用小队列通常需要更大的池大小，这会使cpu更忙，但可能会遇到不可接受的调度开销，这也会降低吞吐量
