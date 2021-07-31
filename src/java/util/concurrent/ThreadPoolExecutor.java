@@ -1041,12 +1041,12 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      */
 
     /**
-     * Checks if a new worker can be added with respect to current
+     * Checks if a new worker can be added with respect to（对） current
      * pool state and the given bound (either core or maximum). If so,
-     * the worker count is adjusted accordingly, and, if possible, a
+     * the worker count is adjusted accordingly（相应的调整）, and, if possible, a
      * new worker is created and started, running firstTask as its
      * first task. This method returns false if the pool is stopped or
-     * eligible to shut down. It also returns false if the thread
+     * eligible(符合条件的) to shut down. It also returns false if the thread
      * factory fails to create a thread when asked.  If the thread
      * creation fails, either due to the thread factory returning
      * null, or due to an exception (typically OutOfMemoryError in
@@ -1077,6 +1077,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *
      */
     private boolean addWorker(Runnable firstTask, boolean core) {
+        /**
+         * break retry 跳到retry处，且不再进入循环
+         * continue retry 跳到retry处，且再次进入循环
+         */
+        // 校验是否可以添加worker
         retry:
         for (; ; ) {
             int c = ctl.get();
@@ -1093,14 +1098,15 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                         wc >= (core ? corePoolSize : maximumPoolSize))
                     return false;
                 if (compareAndIncrementWorkerCount(c))
-                    break retry;
+                    break retry; // 结束循环体
                 c = ctl.get();  // Re-read ctl
                 if (runStateOf(c) != rs)
-                    continue retry;
+                    continue retry; // 结束当前循环
                 // else CAS failed due to workerCount change; retry inner loop
             }
         }
 
+        // 添加worker 并开始工作
         boolean workerStarted = false;
         boolean workerAdded = false;
         Worker w = null;
