@@ -185,6 +185,9 @@ public interface BlockingQueue<E> extends Queue<E> {
      * {@code IllegalStateException} if no space is currently available.
      * When using a capacity-restricted queue, it is generally preferable to
      * use {@link #offer(Object) offer}.
+     * 如果可以在不违反容量限制的情况下立即将指定的元素插入到队列中，成功时返回{@code true}，
+     * 如果当前没有可用空间，则抛出{@code IllegalStateException}。当使用容量受限的队列时，
+     * 通常最好使用{@link #offer(Object) offer}。
      *
      * @param e the element to add
      * @return {@code true} (as specified by {@link Collection#add})
@@ -205,6 +208,9 @@ public interface BlockingQueue<E> extends Queue<E> {
      * available.  When using a capacity-restricted queue, this method is
      * generally preferable to {@link #add}, which can fail to insert an
      * element only by throwing an exception.
+     * 如果可以在不违反容量限制的情况下立即将指定的元素插入到该队列中，成功时返回{@code true}，
+     * 如果当前没有可用空间则返回{@code false}。当使用容量受限的队列时，这种方法通常比{@link #add}更好，
+     * 后者只能通过抛出异常来插入元素失败。
      *
      * @param e the element to add
      * @return {@code true} if the element was added to this queue, else

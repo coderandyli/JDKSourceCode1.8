@@ -424,7 +424,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      */
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
-    private static final int CAPACITY = (1 << COUNT_BITS) - 1;
+    private static final int CAPACITY = (1 << COUNT_BITS) - 1; // 11111111111111111111111111111
 
     // runState is stored in the high-order bits  线程池的五种状态
     private static final int RUNNING = -1 << COUNT_BITS; // 能接受新提交的任务，并且也能处理阻塞队列中的任务
@@ -437,17 +437,22 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
     // 计算当前运行状态
     private static int runStateOf(int c) {
+        /**
+         * ~ 非运算符，表示取反
+         * & 按位与，两位同时为“1”，结果才为“1”，否则为0
+         */
         return c & ~CAPACITY;
     }
 
-    // 计算当期线程数量
+    // 计算当期工作线程数量
     private static int workerCountOf(int c) {
         return c & CAPACITY;
     }
 
     // 通过状态和线程数量生成ctl
     private static int ctlOf(int rs, int wc) {
-        return rs | wc; // 按位或运算符  -- 将两个数据的二进制表示右对齐后，参加运算的两个对象只要有一个为1，其值为1。
+        // | 按位或运算符, 将两个数据的二进制表示右对齐后，参加运算的两个对象只要有一个为1，其值为1。
+        return rs | wc;
     }
 
     /*
@@ -514,7 +519,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * （例如，当决定是否从SHUTDOWN转换到TIDYING时，我们必须这样做）这适用于某些特殊用途的队列，
      * 比如DelayQueues，允许poll()返回null，即使稍后在延迟过期时可能返回非null。
      * <p>
-     * 工作队列
+     * 等待工作队列，可设置【无界队列】、【有界队列】及大小
      */
     private final BlockingQueue<Runnable> workQueue;
 
@@ -536,7 +541,6 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * 否则，退出的线程将并发地中断那些尚未中断的线程。它还简化了一些相关的统计信息，如largestPoolSize的记录等。我们
      * 同时在shutdown和shutdownNow时保持mainLock，以确保工人设置稳定，同时分别检查中断权限和实际中断权限。
      *
-     * todo
      */
     private final ReentrantLock mainLock = new ReentrantLock();
 
@@ -857,7 +861,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                         terminated();
                     } finally {
                         ctl.set(ctlOf(TERMINATED, 0));
-                        termination.signalAll();
+                        termination.signalAll(); // 唤醒所有等待线程
                     }
                     return;
                 }
@@ -1081,7 +1085,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
          * break retry 跳到retry处，且不再进入循环
          * continue retry 跳到retry处，且再次进入循环
          */
-        // 校验是否可以添加worker
+        // 1.校验是否可以添加worker
         retry:
         for (; ; ) {
             int c = ctl.get();
@@ -1538,25 +1542,31 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * 接口{@link Executor#execute(Runnable)}方法实现
      */
     public void execute(Runnable command) {
-        // 若任务为空，则抛 NPE，不能执行空任务
+        /**
+         * 当有新的任务到来时
+         *  1. 如果当前线程数 < 核心线程数，创建一个新的线程执行任务
+         *  2. 如果当期线程数 > 核心线程数
+         *      2.1 且队列未满，会将任务放入等待队列中
+         *      2.2 且队列已满
+         *          2.2.1 当前线程数 < 最大线程数，创建一个新的线程执行任务
+         *          2.2.2 当前线程数 = 最大线程数，任务将被拒绝，执行拒绝策略
+         */
+
+        // 若任务为空，则抛NPE，不能执行空任务
         if (command == null) {
             throw new NullPointerException();
         }
         int c = ctl.get();
-        // 若工作线程数小于核心线程数，则创建新的线程，并把当前任务 command 作为这个线程的第一个任务
+        // 1.若工作线程数小于核心线程数，则创建新的线程，并把当前任务 command 作为这个线程的第一个任务
         if (workerCountOf(c) < corePoolSize) {
             if (addWorker(command, true)) {
                 return;
             }
             c = ctl.get();
         }
-        /**
-         * 至此，有以下两种情况：
-         * 1.当前工作线程数大于等于核心线程数
-         * 2.新建线程失败
-         * 此时会尝试将任务添加到阻塞队列 workQueue
-         */
-        // 若线程池处于 RUNNING 状态，将任务添加到阻塞队列 workQueue 中
+
+        // 2. 当期线程数 > 核心线程数, 尝试加入队列
+        // workQueue.offer：添加元素到队列中
         if (isRunning(c) && workQueue.offer(command)) {
             // 再次检查线程池标记
             int recheck = ctl.get();
@@ -1565,17 +1575,19 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 // 任务添加到阻塞队列失败，执行拒绝策略
                 reject(command);
             }
-            // 如果线程池还是 RUNNING 的，并且线程数为 0，那么开启新的线程
+            //【doubt】 如果线程池还是 RUNNING 的，并且线程数为 0，那么开启新的线程
             else if (workerCountOf(recheck) == 0) {
                 addWorker(null, false);
             }
         }
+
         /**
          * 至此，有以下两种情况：
          * 1.线程池处于非运行状态，线程池不再接受新的线程
          * 2.线程处于运行状态，但是阻塞队列已满，无法加入到阻塞队列
          * 此时会尝试以最大线程数为限制创建新的工作线程
          */
+        // 3. 队列已满，此时会尝试以最大线程数为限制创建新的工作线程
         else if (!addWorker(command, false)) {
             // 任务进入线程池失败，执行拒绝策略
             reject(command);
@@ -1693,7 +1705,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                     return true;
                 if (nanos <= 0)
                     return false;
-                nanos = termination.awaitNanos(nanos);
+                nanos = termination.awaitNanos(nanos); //
             }
         } finally {
             mainLock.unlock();
