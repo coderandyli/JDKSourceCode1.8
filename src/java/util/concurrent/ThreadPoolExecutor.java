@@ -496,6 +496,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Decrements the workerCount field of ctl. This is called only on
      * abrupt termination of a thread (see processWorkerExit). Other
      * decrements are performed within getTask.
+     * 减少ctl的workerCount字段。这只在线程突然终止时调用(参见processWorkerExit)。其他的递减是在getTask中执行的。
      *
      * 工作线程数递减
      */
@@ -1101,7 +1102,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 if (wc >= CAPACITY ||
                         wc >= (core ? corePoolSize : maximumPoolSize))
                     return false;
-                if (compareAndIncrementWorkerCount(c))
+                if (compareAndIncrementWorkerCount(c)) // workcount+1（唯一加1的地方）
                     break retry; // 结束循环体
                 c = ctl.get();  // Re-read ctl
                 if (runStateOf(c) != rs)
@@ -1175,7 +1176,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     }
 
     /**
-     * Performs cleanup and bookkeeping for a dying worker. Called
+     * Performs cleanup and bookkeeping for a dying(临终的) worker. Called
      * only from worker threads. Unless completedAbruptly is set,
      * assumes that workerCount has already been adjusted to account
      * for exit.  This method removes thread from worker set, and
@@ -1183,11 +1184,15 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * it exited due to user task exception or if fewer than
      * corePoolSize workers are running or queue is non-empty but
      * there are no workers.
+     * 临终的工作线程做清除和标记，仅从工作线程调用，除非设置了completedAbruptly，
+     * 假设workerCount已经被调整为考虑退出。该方法从工作线程集合删除线程，如果线程由于用户任务异常退出，
+     * 或者运行的工作线程少于corePoolSize，或者队列非空但没有工作线程，则可能终止线程池或替换工作线程。
      *
      * @param w                 the worker
-     * @param completedAbruptly if the worker died due to user exception
+     * @param completedAbruptly if the worker died due to user exception 工作线程由于用户异常而死亡
      *
      * 处理工作线程退出
+     *   会移除已完成的工作线程，如果工作线程数小于min（min可能等于核心线程数），会重新创建一个工作线程。
      */
     private void processWorkerExit(Worker w, boolean completedAbruptly) {
         if (completedAbruptly) // If abrupt, then workerCount wasn't adjusted
@@ -1197,13 +1202,15 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         mainLock.lock();
         try {
             completedTaskCount += w.completedTasks;
-            workers.remove(w);
+            workers.remove(w); // 移除工作线程
         } finally {
             mainLock.unlock();
         }
 
+        // 尝试终止
         tryTerminate();
 
+        //
         int c = ctl.get();
         if (runStateLessThan(c, STOP)) {
             if (!completedAbruptly) {
