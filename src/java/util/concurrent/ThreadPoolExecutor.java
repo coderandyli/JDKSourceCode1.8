@@ -1136,6 +1136,10 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *
      * @return task, or null if the worker must exit, in which case
      * workerCount is decremented
+     *
+     *
+     *
+     *
      * <p>
      * 获取任务/任务申请
      * 实现【线程管理】模块与【任务管理】模块之间的通信
