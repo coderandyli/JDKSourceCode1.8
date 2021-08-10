@@ -43,8 +43,8 @@ import java.util.Spliterators;
 
 /**
  * A {@linkplain BlockingQueue blocking queue} in which each insert
- * operation must wait for a corresponding remove operation by another
- * thread, and vice versa.  A synchronous queue does not have any
+ * operation must wait for a corresponding(响应的) remove operation by another
+ * thread, and vice versa（反之亦然）.  A synchronous queue does not have any
  * internal capacity, not even a capacity of one.  You cannot
  * {@code peek} at a synchronous queue because an element is only
  * present when you try to remove it; you cannot insert an element
@@ -57,6 +57,13 @@ import java.util.Spliterators;
  * {@code Collection} methods (for example {@code contains}), a
  * {@code SynchronousQueue} acts as an empty collection.  This queue
  * does not permit {@code null} elements.
+ * 一个{@linkplain BlockingQueue}，其中每个插入操作必须等待另一个线程的相应删除操作，
+ * 反之亦然。同步队列没有任何内部容量，甚至连1的容量都没有。你不能在同步队列中使用{@code peek}，
+ * 因为一个元素只有在你试图移除它时才会出现;你不能插入一个元素(使用任何方法)，除非另一个线程试图删除它;
+ * 您不能迭代，因为没有什么可迭代的。队列的<em>头</em>是第一个进入队列的插入线程试图添加到队列中的元素;
+ * 如果没有这样的队列线程，那么没有元素可以删除，{@code poll()}将返回{@code null}。
+ * 对于其他{@code Collection}方法(例如{@code contains})， {@code SynchronousQueue}充当一个空集合。
+ * 这个队列不允许{@code null}元素。
  *
  * <p>Synchronous queues are similar to rendezvous channels used in
  * CSP and Ada. They are well suited for handoff designs, in which an

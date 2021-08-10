@@ -44,7 +44,7 @@ package java.util.concurrent;
  * invoking {@code new Thread(new(RunnableTask())).start()} for each
  * of a set of tasks, you might use:
  *
- * 该接口提供了一种任务提交与任务执行解耦思想, 通常使用{@code Executor}来代替显式创建线程
+ * 该接口提供了一种【任务提交】与【任务执行】解耦思想, 通常使用{@code Executor}来代替显式创建线程
  * 例如，一组任务调用{@code new Thread(new(RunnableTask())).start()}，你可以使用：
  *
  * <pre>

@@ -269,6 +269,7 @@ public interface Condition {
     /**
      * Causes the current thread to wait until it is signalled or interrupted,
      * or the specified waiting time elapses.
+     * 使当前线程等待，直到收到信号或被中断，或指定的等待时间过去。
      *
      * <p>The lock associated with this condition is atomically
      * released and the current thread becomes disabled for thread scheduling
@@ -451,6 +452,7 @@ public interface Condition {
 
     /**
      * Wakes up one waiting thread.
+     * 唤醒一个等待线程
      *
      * <p>If any threads are waiting on this condition then one
      * is selected for waking up. That thread must then re-acquire the
@@ -469,6 +471,7 @@ public interface Condition {
 
     /**
      * Wakes up all waiting threads.
+     * 唤醒所有等待线程
      *
      * <p>If any threads are waiting on this condition then they are
      * all woken up. Each thread must re-acquire the lock before it can
