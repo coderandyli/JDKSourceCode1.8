@@ -549,6 +549,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * Set containing all worker threads in pool. Accessed only when
      * holding mainLock.
      * 该集合包含线程池中所有工作线程，但仅在持有mainLock锁是可以访问
+     * - 主要为了维持线程池对线程的引用，当需要销毁某个线程时，会将其移出，通过JVM进行回收。
      */
     private final HashSet<Worker> workers = new HashSet<Worker>();
 
@@ -1066,7 +1067,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * 如果是，则相应地调整worker计数，并且如果可能，将创建并启动一个新的worker，
      * 并运行firstTask作为其第一个任务。如果池已停止或符合关闭条件，此方法将返回false。
      * 如果线程工厂在被要求创建线程时失败，它也返回false。如果线程创建失败，或者是由于线程工厂返回null，
-     * 或者是由于异常(通常是thread .start()中的OutOfMemoryError))，我们会干净地回滚。
+     * 或者是由于异常(通常是thread.start()中的OutOfMemoryError))，我们会干净地回滚。
      *
      * @param firstTask the task the new thread should run first (or
      *                  null if none). Workers are created with an initial first task
@@ -1147,6 +1148,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 }
                 // 如果成功添加了 Worker，就可以启动 Worker 了
                 if (workerAdded) {
+                    /**
+                     * 该方法底层会调用t.run()，从而最终调用{@link Worker#run()}
+                     * todo: 为什么调用了t.start()方法之后，就会运行{@link Worker#run()}
+                     *  - 解释一：如果该线程是使用独立的 Runnable 运行对象构造的，则调用该 Runnable 对象的 run 方法。https://www.runoob.com/java/java-multithreading.html
+                     */
                     t.start();
                     workerStarted = true;
                 }
@@ -1197,20 +1203,24 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @param completedAbruptly if the worker died due to user exception 工作线程由于用户异常而死亡
      *
      * 处理工作线程退出
-     *   会移除已完成的工作线程，如果工作线程数小于min（min可能等于核心线程数），会重新创建一个工作线程。
+     *  开始 --> 线程回收 --> 记录线程执行任务情况 --> 将线程引用移出线程池 --> 线程池自适应当前状态 --> 结束
      */
     private void processWorkerExit(Worker w, boolean completedAbruptly) {
         if (completedAbruptly) // If abrupt, then workerCount wasn't adjusted
             decrementWorkerCount();
 
+        // 回收工作线程
         final ReentrantLock mainLock = this.mainLock;
         mainLock.lock();
         try {
             completedTaskCount += w.completedTasks;
-            workers.remove(w); // 移除工作线程
+            workers.remove(w); // 主动消除自身在线程池内的引用，等待JVM自动回收。
         } finally {
             mainLock.unlock();
         }
+
+        // 此时已经完成了线程销毁，但由于引起线程销毁的可能性有很多，线程池还要判断是什么引发了这次销毁，
+        // 是否要改变线程池的现阶段状态，是否要根据新状态，重新分配线程。
 
         // 尝试终止
         tryTerminate();
@@ -1345,6 +1355,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         w.firstTask = null;
         w.unlock(); // allow interrupts
         boolean completedAbruptly = true;
+        // 核心线程无超时时间限制时，核心线程可以无限等待获取任务，非核心线程要限时获取任务。当Worker无法获取到任务，也就是获取的任务为空时，循环会结束，Worker会主动消除自身在线程池内的引用。
         try {
             while (task != null || (task = getTask()) != null) { //获取任务
                 w.lock();
