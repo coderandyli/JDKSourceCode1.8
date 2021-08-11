@@ -699,7 +699,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * 这样可以防止中断，这些中断是为了唤醒正在等待任务的工作线程，而不是中断正在运行的任务。
      * <p>
      * 我们实现了一个简单的不可重入的互斥锁，而不是使用ReentrantLock，因为我们不希望工作任务在调用setCorePoolSize之类
-     * 的池控制方法时能够重新获得锁（todo）
+     * 的池控制方法时能够重新获得锁
      * <p>
      * 此外，为了在线程实际开始运行任务之前抑制中断，我们将锁状态初始化为负值，并在启动时清除它(在runWorker中)。
      * <p>
@@ -862,7 +862,12 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                         terminated();
                     } finally {
                         ctl.set(ctlOf(TERMINATED, 0));
-                        termination.signalAll(); // 唤醒所有等待线程
+
+                        /**
+                         * 唤醒所有阻塞等待线程
+                         * see {@link #awaitTermination(long, TimeUnit)}
+                         */
+                        termination.signalAll();
                     }
                     return;
                 }
@@ -1712,7 +1717,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                     return true;
                 if (nanos <= 0)
                     return false;
-                nanos = termination.awaitNanos(nanos); //
+                nanos = termination.awaitNanos(nanos); // 阻塞等待
             }
         } finally {
             mainLock.unlock();
@@ -2271,6 +2276,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * implementation does nothing. Note: To properly nest multiple
      * overridings, subclasses should generally invoke
      * {@code super.terminated} within this method.
+     * 方法在Executor终止时调用，
      */
     protected void terminated() {
     }
